@@ -100,7 +100,7 @@ export default function Header() {
 
             {/* DROPDOWN */}
             {profileOpen && (
-              <div className="absolute right-0 top-full z-[100] mt-2 w-52 rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
+              <div className="absolute right-0 top-full z-100 mt-2 w-52 rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
 
                 {/* Profile */}
                 <button

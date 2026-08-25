@@ -70,7 +70,7 @@ export default function SalesChart() {
   return (
     <div className="w-full">
       {/* Chart */}
-      <div className="relative h-[320px] w-full overflow-hidden">
+      <div className="relative h-80 w-full overflow-hidden">
         <svg
           viewBox={`0 0 ${chartWidth} ${chartHeight}`}
           preserveAspectRatio="none"
