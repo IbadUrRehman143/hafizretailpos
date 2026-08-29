@@ -1,0 +1,380 @@
+[
+  {
+    "id": "column.public.invoice.discount",
+    "label": "Add column \"discount\" to \"invoice\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "discount",
+        "table": "invoice"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"discount\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "invoice",
+          "discount"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"discount\"",
+        "sql": "ALTER TABLE \"public\".\"invoice\" ADD COLUMN \"discount\" float8 DEFAULT 0 NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"discount\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "invoice",
+          "discount"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.invoice.notes",
+    "label": "Add column \"notes\" to \"invoice\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "notes",
+        "table": "invoice"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"notes\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "invoice",
+          "notes"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"notes\"",
+        "sql": "ALTER TABLE \"public\".\"invoice\" ADD COLUMN \"notes\" text DEFAULT '' NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"notes\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "invoice",
+          "notes"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.invoice.paymentMethod",
+    "label": "Add column \"paymentMethod\" to \"invoice\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "paymentMethod",
+        "table": "invoice"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"paymentMethod\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "invoice",
+          "paymentMethod"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"paymentMethod\"",
+        "sql": "ALTER TABLE \"public\".\"invoice\" ADD COLUMN \"paymentMethod\" text DEFAULT 'Cash' NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"paymentMethod\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "invoice",
+          "paymentMethod"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.invoice.saleType",
+    "label": "Add column \"saleType\" to \"invoice\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "saleType",
+        "table": "invoice"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"saleType\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "invoice",
+          "saleType"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"saleType\"",
+        "sql": "ALTER TABLE \"public\".\"invoice\" ADD COLUMN \"saleType\" text DEFAULT 'RETAIL' NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"saleType\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "invoice",
+          "saleType"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.invoiceItem.discount",
+    "label": "Add column \"discount\" to \"invoiceItem\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "discount",
+        "table": "invoiceItem"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"discount\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "invoiceItem",
+          "discount"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"discount\"",
+        "sql": "ALTER TABLE \"public\".\"invoiceItem\" ADD COLUMN \"discount\" float8 DEFAULT 0 NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"discount\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "invoiceItem",
+          "discount"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.invoiceItem.grossAmount",
+    "label": "Add column \"grossAmount\" to \"invoiceItem\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "grossAmount",
+        "table": "invoiceItem"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"grossAmount\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "invoiceItem",
+          "grossAmount"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"grossAmount\"",
+        "sql": "ALTER TABLE \"public\".\"invoiceItem\" ADD COLUMN \"grossAmount\" float8 DEFAULT 0 NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"grossAmount\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "invoiceItem",
+          "grossAmount"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.purchase.paymentMethod",
+    "label": "Add column \"paymentMethod\" to \"purchase\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "paymentMethod",
+        "table": "purchase"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"paymentMethod\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "purchase",
+          "paymentMethod"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"paymentMethod\"",
+        "sql": "ALTER TABLE \"public\".\"purchase\" ADD COLUMN \"paymentMethod\" text DEFAULT 'Cash' NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"paymentMethod\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "purchase",
+          "paymentMethod"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "setDefault.product.purchasePrice",
+    "label": "Set default on \"product\".\"purchasePrice\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "purchasePrice",
+        "table": "product"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"purchasePrice\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "product",
+          "purchasePrice"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "set default on \"purchasePrice\"",
+        "sql": "ALTER TABLE \"public\".\"product\" ALTER COLUMN \"purchasePrice\" SET DEFAULT 0"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"purchasePrice\" has a default",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3 AND \"column_default\" IS NOT NULL)) AS \"result\"",
+        "params": [
+          "public",
+          "product",
+          "purchasePrice"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "setDefault.product.sellingPrice",
+    "label": "Set default on \"product\".\"sellingPrice\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "sellingPrice",
+        "table": "product"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"sellingPrice\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "product",
+          "sellingPrice"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "set default on \"sellingPrice\"",
+        "sql": "ALTER TABLE \"public\".\"product\" ALTER COLUMN \"sellingPrice\" SET DEFAULT 0"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"sellingPrice\" has a default",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3 AND \"column_default\" IS NOT NULL)) AS \"result\"",
+        "params": [
+          "public",
+          "product",
+          "sellingPrice"
+        ]
+      }
+    ]
+  }
+]

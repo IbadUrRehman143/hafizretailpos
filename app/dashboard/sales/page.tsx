@@ -7,13 +7,13 @@ import {
   useState,
 } from "react";
 
-import {
-  useRouter,
-} from "next/navigation";
+import { useRouter } from "next/navigation";
 
 import SalesHeader from "./salesHeader";
 import SalesStats from "./salesStats";
 import SalesTable from "./salesTable";
+import SaleModal from "./saleModal";
+import ReceivePaymentModal from "./receivePaymentModal";
 
 /* =====================================================
    TYPES
@@ -59,15 +59,23 @@ export type SaleItem = {
 
   total: number;
 
-  /*
-   * ADMIN ONLY
-   */
+  /* ADMIN ONLY */
 
   purchasePrice: number;
 
   costAmount: number;
 
   profitAmount: number;
+};
+
+export type SalePayment = {
+  id: number;
+
+  method: PaymentMethod;
+
+  amount: number;
+
+  createdAt?: string;
 };
 
 export type Sale = {
@@ -84,6 +92,8 @@ export type Sale = {
   customerPhone: string;
 
   items: SaleItem[];
+
+  payments: SalePayment[];
 
   subtotal: number;
 
@@ -105,9 +115,7 @@ export type Sale = {
 
   notes: string;
 
-  /*
-   * ADMIN ONLY
-   */
+  /* ADMIN ONLY */
 
   costAmount: number;
 
@@ -150,6 +158,8 @@ type ApiPayment = {
   method?: string;
 
   amount?: number;
+
+  createdAt?: string;
 };
 
 type ApiInvoice = {
@@ -306,7 +316,9 @@ function formatDate(
 
   const date =
     new Date(
-      String(value)
+      String(
+        value
+      )
     );
 
   if (
@@ -329,6 +341,24 @@ function formatDate(
         "short",
     }
   );
+}
+
+/* =====================================================
+   CURRENCY
+===================================================== */
+
+function formatCurrency(
+  value: number
+) {
+  return `Rs. ${Number(
+    value || 0
+  ).toLocaleString(
+    "en-PK",
+    {
+      maximumFractionDigits:
+        2,
+    }
+  )}`;
 }
 
 /* =====================================================
@@ -359,6 +389,10 @@ function normalizeSale(
   ) {
     return null;
   }
+
+  /* =================================================
+     TOTALS
+  ================================================= */
 
   const subtotal =
     Math.max(
@@ -408,14 +442,6 @@ function normalizeSale(
       ) || 0
     );
 
-  const changeAmount =
-    Math.max(
-      0,
-      Number(
-        raw.changeAmount
-      ) || 0
-    );
-
   const status =
     normalizeStatus(
       raw.status
@@ -425,21 +451,114 @@ function normalizeSale(
      PAYMENTS
   ================================================= */
 
-  const payments =
+  const rawPayments =
     Array.isArray(
       raw.payments
     )
       ? raw.payments
       : [];
 
-  const payment =
-    payments[0];
+  const normalizedPayments:
+    SalePayment[] =
+    rawPayments
+      .map(
+        (
+          payment
+        ) => {
+          const amount =
+            Math.max(
+              0,
+              Number(
+                payment.amount
+              ) || 0
+            );
+
+          const method =
+            normalizePaymentMethod(
+              payment.method,
+              amount > 0
+                ? "Partial"
+                : "Unpaid"
+            );
+
+          return {
+            id:
+              Number(
+                payment.id
+              ) || 0,
+
+            method,
+
+            amount,
+
+            createdAt:
+              payment.createdAt,
+          };
+        }
+      )
+      .filter(
+        (
+          payment
+        ) =>
+          payment.amount >
+          0
+      )
+      .sort(
+        (
+          a,
+          b
+        ) =>
+          b.id -
+          a.id
+      );
+
+  const latestPayment =
+    normalizedPayments[0];
+
+  /* =================================================
+     CHANGE = LATEST RECEIVE PAYMENT
+
+     Business rule:
+
+     Payment #1 = initial invoice payment
+     Payment #2+ = later Receive Payment
+
+     Example:
+
+     Grand Total  = 30,000
+     Initial Paid = 20,000
+     Receive Now  = 5,000
+
+     Change       = 5,000
+  ================================================= */
+
+  const savedChangeAmount =
+    Math.max(
+      0,
+      Number(
+        raw.changeAmount
+      ) || 0
+    );
+
+  const latestReceivePayment =
+    normalizedPayments.length > 1
+      ? normalizedPayments[0].amount
+      : 0;
+
+  const changeAmount =
+    latestReceivePayment > 0
+      ? latestReceivePayment
+      : normalizedPayments.length > 1
+        ? savedChangeAmount
+        : 0;
 
   const paymentMethod =
-    normalizePaymentMethod(
-      payment?.method,
-      status
-    );
+    latestPayment
+      ? latestPayment.method
+      : normalizePaymentMethod(
+          undefined,
+          status
+        );
 
   /* =================================================
      ITEMS
@@ -455,7 +574,9 @@ function normalizeSale(
   const items:
     SaleItem[] =
     rawItems.map(
-      (item) => {
+      (
+        item
+      ) => {
         const rawUnit =
           String(
             item.unit ||
@@ -463,7 +584,8 @@ function normalizeSale(
           ).toUpperCase();
 
         const unit:
-          "KG" | "PCS" =
+          | "KG"
+          | "PCS" =
           rawUnit ===
           "KG"
             ? "KG"
@@ -512,7 +634,7 @@ function normalizeSale(
               ) || 0
             ),
 
-          /* PRIVATE */
+          /* ADMIN ONLY */
 
           purchasePrice:
             Math.max(
@@ -591,12 +713,16 @@ function normalizeSale(
         )
       : grandTotal >
           0
-      ? (
-          profitAmount /
-          grandTotal
-        ) *
-        100
-      : 0;
+        ? (
+            profitAmount /
+            grandTotal
+          ) *
+          100
+        : 0;
+
+  /* =================================================
+     FINAL SALE
+  ================================================= */
 
   return {
     id,
@@ -635,6 +761,9 @@ function normalizeSale(
       ),
 
     items,
+
+    payments:
+      normalizedPayments,
 
     subtotal,
 
@@ -676,6 +805,10 @@ export default function SalesPage() {
   const router =
     useRouter();
 
+  /* =================================================
+     SALES
+  ================================================= */
+
   const [
     sales,
     setSales,
@@ -688,29 +821,69 @@ export default function SalesPage() {
     loading,
     setLoading,
   ] =
-    useState(true);
+    useState(
+      true
+    );
 
   const [
     error,
     setError,
   ] =
-    useState("");
+    useState(
+      ""
+    );
+
+  /* =================================================
+     FILTERS
+  ================================================= */
 
   const [
     search,
     setSearch,
   ] =
-    useState("");
+    useState(
+      ""
+    );
 
   const [
     statusFilter,
     setStatusFilter,
   ] =
-    useState("All");
+    useState(
+      "All"
+    );
+
+  /* =================================================
+     VIEW SALE
+  ================================================= */
 
   const [
     selectedSale,
     setSelectedSale,
+  ] =
+    useState<Sale | null>(
+      null
+    );
+
+  /* =================================================
+     EDIT SALE
+  ================================================= */
+
+  const [
+    editingSale,
+    setEditingSale,
+  ] =
+    useState<Sale | null>(
+      null
+    );
+
+  /* =================================================
+     RECEIVE PAYMENT
+  ================================================= */
+
+  const [
+    receivingPaymentSale,
+    setReceivingPaymentSale,
   ] =
     useState<Sale | null>(
       null
@@ -728,7 +901,9 @@ export default function SalesPage() {
             true
           );
 
-          setError("");
+          setError(
+            ""
+          );
 
           const response =
             await fetch(
@@ -815,11 +990,14 @@ export default function SalesPage() {
       []
     );
 
-  useEffect(() => {
-    void loadSales();
-  }, [
-    loadSales,
-  ]);
+  useEffect(
+    () => {
+      void loadSales();
+    },
+    [
+      loadSales,
+    ]
+  );
 
   /* =====================================================
      STATS
@@ -830,10 +1008,10 @@ export default function SalesPage() {
       () =>
         sales.reduce(
           (
-            sum,
+            total,
             sale
           ) =>
-            sum +
+            total +
             sale.grandTotal,
           0
         ),
@@ -847,10 +1025,10 @@ export default function SalesPage() {
       () =>
         sales.reduce(
           (
-            sum,
+            total,
             sale
           ) =>
-            sum +
+            total +
             sale.paidAmount,
           0
         ),
@@ -864,10 +1042,10 @@ export default function SalesPage() {
       () =>
         sales.reduce(
           (
-            sum,
+            total,
             sale
           ) =>
-            sum +
+            total +
             sale.remainingAmount,
           0
         ),
@@ -881,10 +1059,10 @@ export default function SalesPage() {
       () =>
         sales.reduce(
           (
-            sum,
+            total,
             sale
           ) =>
-            sum +
+            total +
             sale.profitAmount,
           0
         ),
@@ -904,7 +1082,7 @@ export default function SalesPage() {
   }
 
   /* =====================================================
-     VIEW
+     VIEW SALE
   ===================================================== */
 
   function handleView(
@@ -916,22 +1094,77 @@ export default function SalesPage() {
   }
 
   /* =====================================================
-     EDIT
+     EDIT SALE
   ===================================================== */
 
   function handleEdit(
     sale: Sale
   ) {
-    alert(
-      `${sale.invoiceNo} edit system stock adjustment ke saath next step mein connect hoga.`
+    setSelectedSale(
+      null
+    );
+
+    setEditingSale(
+      sale
     );
   }
 
+  async function handleSaleUpdated() {
+    setEditingSale(
+      null
+    );
+
+    setSelectedSale(
+      null
+    );
+
+    await loadSales();
+  }
+
   /* =====================================================
-     DELETE
+     RECEIVE PAYMENT
   ===================================================== */
 
-  function handleDelete(
+  function handleReceivePayment(
+    sale: Sale
+  ) {
+    if (
+      sale.remainingAmount <=
+      0
+    ) {
+      alert(
+        `${sale.invoiceNo} is already fully paid.`
+      );
+
+      return;
+    }
+
+    setSelectedSale(
+      null
+    );
+
+    setReceivingPaymentSale(
+      sale
+    );
+  }
+
+  async function handlePaymentSuccess() {
+    setReceivingPaymentSale(
+      null
+    );
+
+    setSelectedSale(
+      null
+    );
+
+    await loadSales();
+  }
+
+  /* =====================================================
+     DELETE SALE
+  ===================================================== */
+
+  async function handleDelete(
     id: number
   ) {
     const sale =
@@ -949,9 +1182,102 @@ export default function SalesPage() {
       return;
     }
 
-    alert(
-      `${sale.invoiceNo} delete/cancel stock restore ke saath next step mein connect hoga.`
-    );
+    const confirmed =
+      window.confirm(
+        `Delete ${sale.invoiceNo}?\n\nSold stock will be restored automatically. This action cannot be undone.`
+      );
+
+    if (
+      !confirmed
+    ) {
+      return;
+    }
+
+    try {
+      const response =
+        await fetch(
+          `/api/invoices/${sale.id}`,
+          {
+            method:
+              "DELETE",
+          }
+        );
+
+      if (
+        !response.ok
+      ) {
+        throw new Error(
+          await getErrorMessage(
+            response
+          )
+        );
+      }
+
+      const data =
+        (await response.json()) as {
+          message?: string;
+        };
+
+      setSales(
+        (
+          currentSales
+        ) =>
+          currentSales.filter(
+            (
+              item
+            ) =>
+              item.id !==
+              id
+          )
+      );
+
+      setSelectedSale(
+        (
+          currentSale
+        ) =>
+          currentSale?.id ===
+          id
+            ? null
+            : currentSale
+      );
+
+      setEditingSale(
+        (
+          currentSale
+        ) =>
+          currentSale?.id ===
+          id
+            ? null
+            : currentSale
+      );
+
+      setReceivingPaymentSale(
+        (
+          currentSale
+        ) =>
+          currentSale?.id ===
+          id
+            ? null
+            : currentSale
+      );
+
+      alert(
+        data.message ||
+          `${sale.invoiceNo} deleted successfully. Stock restored.`
+      );
+    } catch (error) {
+      console.error(
+        "DELETE SALE ERROR:",
+        error
+      );
+
+      alert(
+        error instanceof
+          Error
+          ? error.message
+          : "Unable to delete sale."
+      );
+    }
   }
 
   /* =====================================================
@@ -963,11 +1289,15 @@ export default function SalesPage() {
 
       <div className="mx-auto max-w-7xl space-y-6">
 
+        {/* HEADER */}
+
         <SalesHeader
           onAdd={
             handleAdd
           }
         />
+
+        {/* ERROR */}
 
         {error && (
 
@@ -991,6 +1321,8 @@ export default function SalesPage() {
 
         )}
 
+        {/* LOADING */}
+
         {loading ? (
 
           <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
@@ -1008,6 +1340,9 @@ export default function SalesPage() {
         ) : (
 
           <>
+
+            {/* STATS */}
+
             <SalesStats
               totalSales={
                 totalSales
@@ -1025,6 +1360,8 @@ export default function SalesPage() {
                 sales.length
               }
             />
+
+            {/* TABLE */}
 
             <SalesTable
               sales={
@@ -1052,11 +1389,16 @@ export default function SalesPage() {
                 handleDelete
               }
             />
+
           </>
 
         )}
 
       </div>
+
+      {/* ===============================================
+          VIEW SALE MODAL
+      =============================================== */}
 
       {selectedSale && (
 
@@ -1069,6 +1411,55 @@ export default function SalesPage() {
               null
             )
           }
+          onReceivePayment={() =>
+            handleReceivePayment(
+              selectedSale
+            )
+          }
+        />
+
+      )}
+
+      {/* ===============================================
+          EDIT SALE MODAL
+      =============================================== */}
+
+      {editingSale && (
+
+        <SaleModal
+          sale={
+            editingSale
+          }
+          onClose={() =>
+            setEditingSale(
+              null
+            )
+          }
+          onUpdated={
+            handleSaleUpdated
+          }
+        />
+
+      )}
+
+      {/* ===============================================
+          RECEIVE PAYMENT MODAL
+      =============================================== */}
+
+      {receivingPaymentSale && (
+
+        <ReceivePaymentModal
+          sale={
+            receivingPaymentSale
+          }
+          onClose={() =>
+            setReceivingPaymentSale(
+              null
+            )
+          }
+          onSuccess={
+            handlePaymentSuccess
+          }
         />
 
       )}
@@ -1078,32 +1469,22 @@ export default function SalesPage() {
 }
 
 /* =====================================================
-   ADMIN SALE VIEW
+   ADMIN SALE VIEW MODAL
 ===================================================== */
 
 function SaleViewModal({
   sale,
   onClose,
+  onReceivePayment,
 }: {
   sale: Sale;
 
   onClose:
     () => void;
-}) {
-  function currency(
-    value: number
-  ) {
-    return `Rs. ${Number(
-      value || 0
-    ).toLocaleString(
-      "en-PK",
-      {
-        maximumFractionDigits:
-          2,
-      }
-    )}`;
-  }
 
+  onReceivePayment:
+    () => void;
+}) {
   function printInvoice() {
     window.print();
   }
@@ -1113,16 +1494,18 @@ function SaleViewModal({
 
       <div
         id="sales-print-invoice"
-        className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-xl"
+        className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white shadow-xl"
       >
 
-        {/* HEADER */}
+        {/* =================================================
+            HEADER
+        ================================================= */}
 
         <div className="flex items-start justify-between border-b p-6">
 
           <div>
 
-            <h2 className="text-2xl font-bold">
+            <h2 className="text-2xl font-bold text-slate-900">
               Sale Details
             </h2>
 
@@ -1134,7 +1517,7 @@ function SaleViewModal({
 
           <div className="text-right">
 
-            <p className="font-bold">
+            <p className="font-bold text-slate-900">
               Hafiz Retail POS
             </p>
 
@@ -1146,9 +1529,11 @@ function SaleViewModal({
 
         </div>
 
-        {/* CUSTOMER */}
+        {/* =================================================
+            CUSTOMER
+        ================================================= */}
 
-        <div className="grid grid-cols-2 gap-4 border-b p-6">
+        <div className="grid gap-4 border-b p-6 sm:grid-cols-2">
 
           <div>
 
@@ -1156,7 +1541,7 @@ function SaleViewModal({
               CUSTOMER
             </p>
 
-            <p className="mt-1 font-semibold">
+            <p className="mt-1 font-semibold text-slate-900">
               {sale.customerName}
             </p>
 
@@ -1170,13 +1555,13 @@ function SaleViewModal({
 
           </div>
 
-          <div className="text-right">
+          <div className="sm:text-right">
 
             <p className="text-xs font-semibold text-slate-400">
               DATE
             </p>
 
-            <p className="mt-1 text-sm">
+            <p className="mt-1 text-sm text-slate-700">
               {sale.date}
             </p>
 
@@ -1184,39 +1569,41 @@ function SaleViewModal({
 
         </div>
 
-        {/* ITEMS */}
+        {/* =================================================
+            ITEMS
+        ================================================= */}
 
         <div className="p-6">
 
-          <div className="overflow-x-auto rounded-xl border">
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
 
-            <table className="w-full min-w-200">
+            <table className="w-full min-w-[800px]">
 
               <thead className="bg-slate-50">
 
                 <tr>
 
-                  <th className="p-3 text-left text-xs">
+                  <th className="p-3 text-left text-xs font-semibold text-slate-500">
                     Product
                   </th>
 
-                  <th className="p-3 text-center text-xs">
+                  <th className="p-3 text-center text-xs font-semibold text-slate-500">
                     Qty
                   </th>
 
-                  <th className="p-3 text-right text-xs">
+                  <th className="p-3 text-right text-xs font-semibold text-slate-500">
                     Sale Price
                   </th>
 
-                  <th className="p-3 text-right text-xs">
+                  <th className="p-3 text-right text-xs font-semibold text-slate-500">
                     Purchase
                   </th>
 
-                  <th className="p-3 text-right text-xs">
+                  <th className="p-3 text-right text-xs font-semibold text-slate-500">
                     Cost
                   </th>
 
-                  <th className="p-3 text-right text-xs">
+                  <th className="p-3 text-right text-xs font-semibold text-slate-500">
                     Profit
                   </th>
 
@@ -1234,32 +1621,32 @@ function SaleViewModal({
 
                     <tr
                       key={`${item.productId}-${index}`}
-                      className="border-t"
+                      className="border-t border-slate-100"
                     >
 
-                      <td className="p-3 text-sm">
+                      <td className="p-3 text-sm font-medium text-slate-900">
                         {item.productName}
                       </td>
 
-                      <td className="p-3 text-center text-sm">
+                      <td className="p-3 text-center text-sm text-slate-700">
                         {item.quantity}{" "}
                         {item.unit}
                       </td>
 
-                      <td className="p-3 text-right text-sm">
-                        {currency(
+                      <td className="p-3 text-right text-sm text-slate-700">
+                        {formatCurrency(
                           item.price
                         )}
                       </td>
 
-                      <td className="p-3 text-right text-sm">
-                        {currency(
+                      <td className="p-3 text-right text-sm text-slate-700">
+                        {formatCurrency(
                           item.purchasePrice
                         )}
                       </td>
 
-                      <td className="p-3 text-right text-sm">
-                        {currency(
+                      <td className="p-3 text-right text-sm text-slate-700">
+                        {formatCurrency(
                           item.costAmount
                         )}
                       </td>
@@ -1272,7 +1659,7 @@ function SaleViewModal({
                             : "text-red-600"
                         }`}
                       >
-                        {currency(
+                        {formatCurrency(
                           item.profitAmount
                         )}
                       </td>
@@ -1288,14 +1675,16 @@ function SaleViewModal({
 
           </div>
 
-          {/* ADMIN PROFIT */}
+          {/* =================================================
+              ADMIN PROFIT
+          ================================================= */}
 
-          <div className="mt-6 grid gap-4 md:grid-cols-4">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
             <AdminCard
               title="Sale Amount"
               value={
-                currency(
+                formatCurrency(
                   sale.grandTotal
                 )
               }
@@ -1304,7 +1693,7 @@ function SaleViewModal({
             <AdminCard
               title="Cost Amount"
               value={
-                currency(
+                formatCurrency(
                   sale.costAmount
                 )
               }
@@ -1313,7 +1702,7 @@ function SaleViewModal({
             <AdminCard
               title="Profit"
               value={
-                currency(
+                formatCurrency(
                   sale.profitAmount
                 )
               }
@@ -1334,14 +1723,16 @@ function SaleViewModal({
 
           </div>
 
-          {/* PAYMENT */}
+          {/* =================================================
+              INVOICE PAYMENT TOTAL
+          ================================================= */}
 
-          <div className="ml-auto mt-6 max-w-sm space-y-3">
+          <div className="ml-auto mt-6 max-w-sm space-y-3 rounded-2xl border border-slate-200 p-5">
 
             <InvoiceRow
               label="Subtotal"
               value={
-                currency(
+                formatCurrency(
                   sale.subtotal
                 )
               }
@@ -1349,7 +1740,7 @@ function SaleViewModal({
 
             <InvoiceRow
               label="Discount"
-              value={`- ${currency(
+              value={`- ${formatCurrency(
                 sale.discount
               )}`}
             />
@@ -1357,7 +1748,7 @@ function SaleViewModal({
             <InvoiceRow
               label="Tax"
               value={
-                currency(
+                formatCurrency(
                   sale.tax
                 )
               }
@@ -1370,7 +1761,7 @@ function SaleViewModal({
               </span>
 
               <span>
-                {currency(
+                {formatCurrency(
                   sale.grandTotal
                 )}
               </span>
@@ -1380,63 +1771,267 @@ function SaleViewModal({
             <InvoiceRow
               label="Paid"
               value={
-                currency(
+                formatCurrency(
                   sale.paidAmount
                 )
               }
             />
 
+            {/* =========================================
+                REMAINING
+            ========================================= */}
+
             <InvoiceRow
               label="Remaining"
               value={
-                currency(
+                formatCurrency(
                   sale.remainingAmount
                 )
               }
             />
 
+            {/* =========================================
+                CHANGE AMOUNT
+            ========================================= */}
+
+            <div
+              className={`flex items-center justify-between rounded-xl px-3 py-3 ${
+                sale.changeAmount > 0
+                  ? "bg-emerald-50"
+                  : "bg-slate-100"
+              }`}
+            >
+
+              <span
+                className={`text-sm font-semibold ${
+                  sale.changeAmount > 0
+                    ? "text-emerald-700"
+                    : "text-slate-600"
+                }`}
+              >
+                Change
+              </span>
+
+              <span
+                className={`font-bold ${
+                  sale.changeAmount > 0
+                    ? "text-emerald-700"
+                    : "text-slate-700"
+                }`}
+              >
+                {formatCurrency(
+                  sale.changeAmount
+                )}
+              </span>
+
+            </div>
+
           </div>
+
+          {/* =================================================
+              PAYMENT STATUS
+          ================================================= */}
 
           <div className="mt-5 rounded-xl bg-slate-50 p-4">
 
-            <div className="flex justify-between">
+            <div className="flex justify-between gap-4">
 
               <span className="text-sm text-slate-500">
-                Payment Method
+                Last Payment Method
               </span>
 
-              <span className="font-semibold">
+              <span className="font-semibold text-slate-900">
                 {sale.paymentMethod}
               </span>
 
             </div>
 
-            <div className="mt-2 flex justify-between">
+            <div className="mt-3 flex justify-between gap-4">
 
               <span className="text-sm text-slate-500">
                 Status
               </span>
 
-              <span className="font-semibold">
-                {sale.status}
-              </span>
+              <StatusBadge
+                status={
+                  sale.status
+                }
+              />
 
             </div>
 
           </div>
 
+          {/* =================================================
+              PAYMENT HISTORY
+          ================================================= */}
+
+          <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
+
+            <div className="flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+
+              <div>
+
+                <h3 className="font-bold text-slate-900">
+                  Payment History
+                </h3>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  All payments received against this invoice.
+                </p>
+
+              </div>
+
+              <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                {sale.payments.length}{" "}
+                {sale.payments.length ===
+                1
+                  ? "Payment"
+                  : "Payments"}
+              </span>
+
+            </div>
+
+            {sale.payments.length ===
+            0 ? (
+
+              <div className="p-5 text-sm text-slate-500">
+                No payment received yet.
+              </div>
+
+            ) : (
+
+              <div className="overflow-x-auto">
+
+                <table className="w-full">
+
+                  <thead className="bg-slate-50">
+
+                    <tr>
+
+                      <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500">
+                        #
+                      </th>
+
+                      <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500">
+                        Payment Method
+                      </th>
+
+                      <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500">
+                        Date
+                      </th>
+
+                      <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500">
+                        Amount
+                      </th>
+
+                    </tr>
+
+                  </thead>
+
+                  <tbody>
+
+                    {sale.payments.map(
+                      (
+                        payment,
+                        index
+                      ) => (
+
+                        <tr
+                          key={
+                            payment.id ||
+                            index
+                          }
+                          className="border-t border-slate-100"
+                        >
+
+                          <td className="px-5 py-3 text-sm text-slate-600">
+                            {index +
+                            1}
+                          </td>
+
+                          <td className="px-5 py-3 text-sm font-semibold text-slate-800">
+                            {payment.method}
+                          </td>
+
+                          <td className="px-5 py-3 text-sm text-slate-500">
+                            {payment.createdAt
+                              ? formatDate(
+                                  payment.createdAt
+                                )
+                              : "-"}
+                          </td>
+
+                          <td className="px-5 py-3 text-right text-sm font-bold text-emerald-600">
+                            {formatCurrency(
+                              payment.amount
+                            )}
+                          </td>
+
+                        </tr>
+
+                      )
+                    )}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            )}
+
+          </div>
+
+          {/* =================================================
+              NOTES
+          ================================================= */}
+
+          {sale.notes && (
+
+            <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Notes
+              </p>
+
+              <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+                {sale.notes}
+              </p>
+
+            </div>
+
+          )}
+
         </div>
 
-        {/* BUTTONS */}
+        {/* =================================================
+            BUTTONS
+        ================================================= */}
 
-        <div className="flex gap-3 border-t p-6 print:hidden">
+        <div className="flex flex-col gap-3 border-t p-6 print:hidden sm:flex-row">
+
+          {sale.remainingAmount >
+            0 && (
+
+            <button
+              type="button"
+              onClick={
+                onReceivePayment
+              }
+              className="flex-1 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
+            >
+              💰 Receive Payment
+            </button>
+
+          )}
 
           <button
             type="button"
             onClick={
               printInvoice
             }
-            className="flex-1 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white"
+            className="flex-1 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
             🖨 Print Sale Record
           </button>
@@ -1446,7 +2041,7 @@ function SaleViewModal({
             onClick={
               onClose
             }
-            className="rounded-xl border px-5 py-3 text-sm font-semibold"
+            className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Close
           </button>
@@ -1454,6 +2049,10 @@ function SaleViewModal({
         </div>
 
       </div>
+
+      {/* =================================================
+          PRINT CSS
+      ================================================= */}
 
       <style jsx global>{`
         @media print {
@@ -1472,10 +2071,14 @@ function SaleViewModal({
           }
 
           #sales-print-invoice {
+            display: block !important;
             position: absolute;
             left: 0;
             top: 0;
             width: 100%;
+            max-height: none !important;
+            overflow: visible !important;
+            box-shadow: none !important;
           }
         }
       `}</style>
@@ -1517,6 +2120,7 @@ function AdminCard({
           : "border-slate-200 bg-slate-50"
       }`}
     >
+
       <p className="text-xs font-semibold text-slate-500">
         {title}
       </p>
@@ -1532,12 +2136,13 @@ function AdminCard({
       >
         {value}
       </p>
+
     </div>
   );
 }
 
 /* =====================================================
-   ROW
+   INVOICE ROW
 ===================================================== */
 
 function InvoiceRow({
@@ -1549,16 +2154,43 @@ function InvoiceRow({
   value: string;
 }) {
   return (
-    <div className="flex justify-between">
+    <div className="flex justify-between gap-4">
 
       <span className="text-sm text-slate-500">
         {label}
       </span>
 
-      <span className="text-sm font-semibold">
+      <span className="text-right text-sm font-semibold text-slate-900">
         {value}
       </span>
 
     </div>
+  );
+}
+
+/* =====================================================
+   STATUS BADGE
+===================================================== */
+
+function StatusBadge({
+  status,
+}: {
+  status: SaleStatus;
+}) {
+  const className =
+    status ===
+    "Paid"
+      ? "bg-emerald-100 text-emerald-700"
+      : status ===
+          "Partial"
+        ? "bg-amber-100 text-amber-700"
+        : "bg-red-100 text-red-700";
+
+  return (
+    <span
+      className={`rounded-full px-3 py-1 text-xs font-bold ${className}`}
+    >
+      {status}
+    </span>
   );
 }

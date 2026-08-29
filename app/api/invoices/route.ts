@@ -156,11 +156,6 @@ function reduceWeightEntries(
     const weight of
     weights
   ) {
-    /*
-     * Sale already completely
-     * deducted.
-     */
-
     if (
       remainingToRemove <=
       0
@@ -172,10 +167,6 @@ function reduceWeightEntries(
       continue;
     }
 
-    /*
-     * Full bundle consumed.
-     */
-
     if (
       weight <=
       remainingToRemove
@@ -185,10 +176,6 @@ function reduceWeightEntries(
 
       continue;
     }
-
-    /*
-     * Partial bundle consumed.
-     */
 
     const remainingWeight =
       weight -
@@ -242,10 +229,6 @@ export async function GET() {
           async (
             invoice
           ) => {
-            /* =================================
-               ITEMS
-            ================================= */
-
             const items =
               await db.orm.public.InvoiceItem
                 .where({
@@ -254,10 +237,6 @@ export async function GET() {
                 })
                 .all();
 
-            /* =================================
-               PAYMENTS
-            ================================= */
-
             const payments =
               await db.orm.public.Payment
                 .where({
@@ -265,10 +244,6 @@ export async function GET() {
                     invoice.id,
                 })
                 .all();
-
-            /* =================================
-               PRIVATE ADMIN TOTAL COST
-            ================================= */
 
             const costAmount =
               items.reduce(
@@ -286,10 +261,6 @@ export async function GET() {
                 0
               );
 
-            /* =================================
-               PRIVATE ADMIN PROFIT
-            ================================= */
-
             const profitAmount =
               items.reduce(
                 (
@@ -305,10 +276,6 @@ export async function GET() {
                   ),
                 0
               );
-
-            /* =================================
-               PROFIT MARGIN
-            ================================= */
 
             const invoiceTotal =
               Number(
@@ -332,10 +299,6 @@ export async function GET() {
 
               payments,
 
-              /*
-               * ADMIN ONLY
-               */
-
               costAmount,
 
               profitAmount,
@@ -345,10 +308,6 @@ export async function GET() {
           }
         )
       );
-
-    /*
-     * Latest invoices first.
-     */
 
     fullInvoices.sort(
       (
@@ -372,7 +331,7 @@ export async function GET() {
       {
         message:
           error instanceof
-            Error
+          Error
             ? error.message
             : "Unable to load invoices.",
       },
@@ -427,9 +386,6 @@ export async function POST(
         ) => {
           /* =============================================
              GROUP SOLD STOCK
-
-             Same product multiple rows
-             mein ho sakta hai.
           ============================================= */
 
           const soldMap =
@@ -551,10 +507,6 @@ export async function POST(
               );
             }
 
-            /* =========================================
-               WEIGHT PRODUCT
-            ========================================= */
-
             if (
               product.type ===
               "weight"
@@ -578,13 +530,7 @@ export async function POST(
                   )} KG available.`
                 );
               }
-            }
-
-            /* =========================================
-               QUANTITY PRODUCT
-            ========================================= */
-
-            else {
+            } else {
               const stock =
                 Math.max(
                   0,
@@ -603,13 +549,6 @@ export async function POST(
                 );
               }
             }
-
-            /* =========================================
-               SAVE PRODUCT SNAPSHOT
-
-               Purchase price snapshot is
-               used for ADMIN profit.
-            ========================================= */
 
             productsToUpdate.set(
               productId,
@@ -770,8 +709,6 @@ export async function POST(
 
           /* =============================================
              TEMP INVOICE NUMBER
-
-             Create first so database gives ID.
           ============================================= */
 
           const tempInvoiceNumber =
@@ -817,12 +754,6 @@ export async function POST(
 
           /* =============================================
              FINAL SERIAL NUMBER
-
-             ID 1:
-             INV-0001
-
-             ID 25:
-             INV-0025
           ============================================= */
 
           const finalInvoiceNumber =
@@ -881,10 +812,6 @@ export async function POST(
               );
             }
 
-            /* =========================================
-               SOLD QUANTITY / WEIGHT
-            ========================================= */
-
             const soldQuantity =
               item.type ===
               "weight"
@@ -903,10 +830,6 @@ export async function POST(
                       0
                   );
 
-            /* =========================================
-               CUSTOMER SELLING RATE
-            ========================================= */
-
             const rate =
               Math.max(
                 0,
@@ -915,12 +838,6 @@ export async function POST(
                 ) ||
                   0
               );
-
-            /* =========================================
-               FINAL ITEM SALE AMOUNT
-
-               This already contains item discount.
-            ========================================= */
 
             const saleAmount =
               Math.max(
@@ -931,33 +848,12 @@ export async function POST(
                   0
               );
 
-            /* =========================================
-               PRIVATE PURCHASE PRICE SNAPSHOT
-            ========================================= */
-
             const purchasePrice =
               product.purchasePrice;
-
-            /* =========================================
-               COST
-
-               PCS:
-               purchasePrice × quantity
-
-               KG:
-               purchasePrice × sold KG
-            ========================================= */
 
             const costAmount =
               purchasePrice *
               soldQuantity;
-
-            /* =========================================
-               PROFIT
-
-               Discount already reflected
-               in saleAmount.
-            ========================================= */
 
             const profitAmount =
               saleAmount -
@@ -968,10 +864,6 @@ export async function POST(
 
             totalProfitAmount +=
               profitAmount;
-
-            /* =========================================
-               CREATE ITEM
-            ========================================= */
 
             await tx.orm.public.InvoiceItem.create({
               invoiceId:
@@ -1000,8 +892,6 @@ export async function POST(
               amount:
                 saleAmount,
 
-              /* ADMIN ONLY */
-
               purchasePrice,
 
               costAmount,
@@ -1011,7 +901,7 @@ export async function POST(
           }
 
           /* =============================================
-             PAYMENT
+             INITIAL PAYMENT
           ============================================= */
 
           if (
@@ -1054,10 +944,6 @@ export async function POST(
               );
             }
 
-            /* =========================================
-               WEIGHT STOCK
-            ========================================= */
-
             if (
               product.type ===
               "weight"
@@ -1085,10 +971,6 @@ export async function POST(
               continue;
             }
 
-            /* =========================================
-               PCS / SIZE STOCK
-            ========================================= */
-
             const newQuantity =
               Math.max(
                 0,
@@ -1108,10 +990,7 @@ export async function POST(
           }
 
           /* =============================================
-             RESPONSE
-
-             Cost / Profit returned for admin
-             but customer print ignores it.
+             PROFIT
           ============================================= */
 
           const profitMargin =
@@ -1123,6 +1002,13 @@ export async function POST(
                 ) *
                 100
               : 0;
+
+          /* =============================================
+             RESPONSE
+
+             IMPORTANT:
+             changeAmount is now returned too.
+          ============================================= */
 
           return {
             invoiceId:
@@ -1142,6 +1028,9 @@ export async function POST(
 
             remainingBalance:
               invoice.remainingBalance,
+
+            changeAmount:
+              invoice.changeAmount,
 
             costAmount:
               totalCostAmount,
@@ -1181,7 +1070,7 @@ export async function POST(
       {
         message:
           error instanceof
-            Error
+          Error
             ? error.message
             : "Unable to save invoice.",
       },

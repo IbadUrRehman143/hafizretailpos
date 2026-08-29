@@ -1,19 +1,46 @@
 // use prisma-next
 
+
+// ======================================================
+// PRODUCT
+// ======================================================
+
 model Product {
   id             Int                 @id @default(autoincrement())
 
   name           String
   category       String
 
+  // weight | quantity | size
   type           String
+
+  // KG | PCS
   unit           String
 
-  purchasePrice  Float
-  sellingPrice   Float
+  // ========================================
+  // PRICES
+  // ========================================
 
+  purchasePrice  Float               @default(0)
+  sellingPrice   Float               @default(0)
+
+  // ========================================
+  // STOCK
+  // ========================================
+
+  // Quantity based stock:
+  // Washing Machine = 5 PCS
+  // Fan = 10 PCS
   quantity       Float               @default(0)
+
+  // Weight based stock:
+  // Example:
+  // 82+115+67+94
   weightEntries  String              @default("")
+
+  // ========================================
+  // PRODUCT DETAILS
+  // ========================================
 
   size           String              @default("")
   material       String              @default("")
@@ -22,12 +49,37 @@ model Product {
   quality        String              @default("")
   color          String              @default("")
 
+  // ========================================
+  // TIMESTAMPS
+  // ========================================
+
   createdAt      TimestamptzString   @default(now())
   updatedAt      temporal.updatedAtString()
 
+  // ========================================
+  // RELATIONS
+  // ========================================
+
   invoiceItems   InvoiceItem[]
+  purchaseItems  PurchaseItem[]
 }
 
+
+// ======================================================
+// CUSTOMER
+//
+// IMPORTANT:
+//
+// Customer table = WHOLESALE customers only.
+//
+// RETAIL customer:
+// customer name/phone invoice snapshot mein save hoga.
+// Customer table mein permanent record create nahi hoga.
+//
+// WHOLESALE customer:
+// permanent Customer record hoga.
+// Invoice.customerId is Customer.id se link hoga.
+// ======================================================
 
 model Customer {
   id             Int                 @id @default(autoincrement())
@@ -38,47 +90,166 @@ model Customer {
   createdAt      TimestamptzString   @default(now())
   updatedAt      temporal.updatedAtString()
 
+  // Wholesale invoices
   invoices       Invoice[]
 }
 
 
+// ======================================================
+// SUPPLIER
+// ======================================================
+
+model Supplier {
+  id             Int                 @id @default(autoincrement())
+
+  name           String
+  phone          String              @default("")
+
+  createdAt      TimestamptzString   @default(now())
+  updatedAt      temporal.updatedAtString()
+
+  purchases      Purchase[]
+}
+
+
+// ======================================================
+// INVOICE / SALE
+// ======================================================
+
 model Invoice {
   id                Int                 @id @default(autoincrement())
 
+  // Example:
+  // INV-0001
+  // INV-0002
   invoiceNumber     String              @unique
 
-  customerId        Int?
+  // ========================================
+  // SALE TYPE
+  // ========================================
+  //
+  // RETAIL
+  // WHOLESALE
+  //
+  // Retail:
+  // customerId = null
+  //
+  // Wholesale:
+  // customerId = Customer.id
+  // ========================================
 
-  customer          Customer?           @relation(
+  saleType           String              @default("RETAIL")
+
+  // ========================================
+  // WHOLESALE CUSTOMER RELATION
+  // ========================================
+
+  customerId         Int?
+
+  customer           Customer?           @relation(
     fields: [customerId],
     references: [id]
   )
 
-  customerName      String              @default("")
-  customerPhone     String              @default("")
+  // ========================================
+  // CUSTOMER SNAPSHOT
+  //
+  // Retail aur Wholesale dono ke invoice
+  // par name/phone preserve rahenge.
+  // ========================================
 
-  subtotal          Float               @default(0)
-  tax               Float               @default(0)
-  total             Float               @default(0)
+  customerName       String              @default("")
+  customerPhone      String              @default("")
 
-  paidAmount        Float               @default(0)
-  remainingBalance  Float               @default(0)
-  changeAmount      Float               @default(0)
+  // ========================================
+  // INVOICE TOTALS
+  // ========================================
 
-  status            String              @default("UNPAID")
+  // Items total before invoice discount/tax
+  subtotal           Float               @default(0)
 
-  finalized         Boolean             @default(false)
+  // Overall invoice discount
+  discount           Float               @default(0)
 
-  createdAt         TimestamptzString   @default(now())
-  updatedAt         temporal.updatedAtString()
+  // Invoice tax
+  tax                Float               @default(0)
 
-  items             InvoiceItem[]
-  payments          Payment[]
+  // Final invoice amount
+  total               Float               @default(0)
+
+  // ========================================
+  // PAYMENT
+  // ========================================
+
+  paidAmount         Float               @default(0)
+
+  remainingBalance   Float               @default(0)
+
+  // IMPORTANT BUSINESS RULE:
+  //
+  // Initial invoice:
+  // changeAmount = 0
+  //
+  // Later Receive Payment:
+  // changeAmount = latest received payment
+  //
+  // Example:
+  //
+  // Total = 30000
+  // Initial Paid = 20000
+  // Change = 0
+  //
+  // Later Received = 5000
+  // Paid = 25000
+  // Remaining = 5000
+  // Change = 5000
+  //
+  changeAmount       Float               @default(0)
+
+  // Cash | Bank | Credit | Other
+  paymentMethod      String              @default("Cash")
+
+  // PAID | PARTIAL | UNPAID
+  status             String              @default("UNPAID")
+
+  // ========================================
+  // NOTES
+  // ========================================
+
+  notes              String              @default("")
+
+  // ========================================
+  // INVOICE STATE
+  // ========================================
+
+  finalized          Boolean             @default(false)
+
+  // ========================================
+  // TIMESTAMPS
+  // ========================================
+
+  createdAt          TimestamptzString   @default(now())
+  updatedAt          temporal.updatedAtString()
+
+  // ========================================
+  // RELATIONS
+  // ========================================
+
+  items              InvoiceItem[]
+  payments           Payment[]
 }
 
 
+// ======================================================
+// INVOICE ITEM
+// ======================================================
+
 model InvoiceItem {
   id             Int                 @id @default(autoincrement())
+
+  // ========================================
+  // INVOICE RELATION
+  // ========================================
 
   invoiceId      Int
 
@@ -88,6 +259,10 @@ model InvoiceItem {
     onDelete: Cascade
   )
 
+  // ========================================
+  // PRODUCT RELATION
+  // ========================================
+
   productId      Int
 
   product        Product             @relation(
@@ -95,33 +270,100 @@ model InvoiceItem {
     references: [id]
   )
 
+  // ========================================
+  // PRODUCT SNAPSHOT
+  //
+  // Product later edit ho jaye tab bhi old
+  // invoice ka product data preserve rahe.
+  // ========================================
+
   productName    String
   productType    String
   unit           String
 
+  // PCS quantity
+  // ya Cotton sold KG
   quantity       Float
 
+  // Weight based sale information.
+  //
+  // Example:
+  // 82+20
+  //
+  // Optional snapshot.
   weightEntries  String              @default("")
 
-  // Customer selling rate
+  // ========================================
+  // SELLING PRICE
+  // ========================================
+
+  // Customer selling rate per PCS / KG
   rate           Float
 
-  // Final sale amount
+  // ========================================
+  // GROSS AMOUNT
+  //
+  // rate × quantity
+  //
+  // Example:
+  // 220 × 50kg = 11000
+  // ========================================
+
+  grossAmount    Float               @default(0)
+
+  // ========================================
+  // ITEM DISCOUNT
+  // ========================================
+
+  discount       Float               @default(0)
+
+  // ========================================
+  // FINAL ITEM SALE AMOUNT
+  //
+  // grossAmount - discount
+  // ========================================
+
   amount         Float
 
   // ========================================
   // ADMIN ONLY - PROFIT SNAPSHOT
+  //
+  // CUSTOMER PRINT PAR YE VALUES
+  // SHOW NAHI HONGI.
   // ========================================
 
+  // Product purchase price at sale time
   purchasePrice  Float               @default(0)
 
+  // purchasePrice × quantity
   costAmount     Float               @default(0)
 
+  // final sale amount - cost
   profitAmount   Float               @default(0)
+
+  // ========================================
+  // TIMESTAMP
+  // ========================================
 
   createdAt      TimestamptzString   @default(now())
 }
 
+
+// ======================================================
+// SALE / INVOICE PAYMENT
+//
+// Initial payment + later Receive Payments.
+//
+// Example:
+//
+// Invoice 30000
+//
+// Payment 1 = 20000 Cash
+// Payment 2 = 5000 Bank
+// Payment 3 = 5000 Cash
+//
+// Payment history preserve hogi.
+// ======================================================
 
 model Payment {
   id             Int                 @id @default(autoincrement())
@@ -134,9 +376,468 @@ model Payment {
     onDelete: Cascade
   )
 
+  // Cash | Bank | Credit | Other
   method         String              @default("Cash")
 
   amount         Float
 
   createdAt      TimestamptzString   @default(now())
+}
+
+
+// ======================================================
+// PURCHASES
+//
+// SUPPLIER
+//      ↓
+// PURCHASE
+//      ↓
+// PURCHASE ITEM
+//      ↓
+// PRODUCT STOCK INCREASE
+// ======================================================
+
+model Purchase {
+  id                Int                 @id @default(autoincrement())
+
+  // Example:
+  // PUR-0001
+  // PUR-0002
+  purchaseNumber    String              @unique
+
+  // ========================================
+  // SUPPLIER
+  // ========================================
+
+  supplierId        Int
+
+  supplier          Supplier            @relation(
+    fields: [supplierId],
+    references: [id]
+  )
+
+  // ========================================
+  // SUPPLIER SNAPSHOT
+  // ========================================
+
+  supplierName      String              @default("")
+  supplierPhone     String              @default("")
+
+  // ========================================
+  // PURCHASE DATE
+  // ========================================
+
+  purchaseDate      TimestamptzString   @default(now())
+
+  // ========================================
+  // TOTAL
+  // ========================================
+
+  subtotal          Float               @default(0)
+
+  // ========================================
+  // PAYMENT
+  // ========================================
+
+  paidAmount        Float               @default(0)
+
+  remainingBalance  Float               @default(0)
+
+  // Cash | Bank | Credit | Other
+  paymentMethod     String              @default("Cash")
+
+  // PAID | PARTIAL | UNPAID
+  status             String              @default("UNPAID")
+
+  // ========================================
+  // NOTES
+  // ========================================
+
+  notes             String              @default("")
+
+  // ========================================
+  // TIMESTAMPS
+  // ========================================
+
+  createdAt         TimestamptzString   @default(now())
+  updatedAt         temporal.updatedAtString()
+
+  // ========================================
+  // RELATIONS
+  // ========================================
+
+  items             PurchaseItem[]
+  payments          PurchasePayment[]
+}
+
+
+// ======================================================
+// PURCHASE ITEM
+// ======================================================
+
+model PurchaseItem {
+  id             Int                 @id @default(autoincrement())
+
+  // ========================================
+  // PURCHASE RELATION
+  // ========================================
+
+  purchaseId     Int
+
+  purchase       Purchase            @relation(
+    fields: [purchaseId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  // ========================================
+  // PRODUCT RELATION
+  // ========================================
+
+  productId      Int
+
+  product        Product             @relation(
+    fields: [productId],
+    references: [id]
+  )
+
+  // ========================================
+  // PRODUCT SNAPSHOT
+  // ========================================
+
+  productName    String
+  productType    String
+  unit           String
+
+  // ========================================
+  // QUANTITY
+  //
+  // quantity type:
+  // 5 PCS
+  //
+  // weight type:
+  // total purchased KG
+  // ========================================
+
+  quantity       Float
+
+  // ========================================
+  // WEIGHT BUNDLES
+  //
+  // Cotton example:
+  //
+  // 82+115+67+94
+  // ========================================
+
+  weightEntries  String              @default("")
+
+  // ========================================
+  // PURCHASE PRICE
+  // ========================================
+
+  purchasePrice  Float
+
+  // purchasePrice × quantity
+  amount         Float
+
+  // ========================================
+  // TIMESTAMP
+  // ========================================
+
+  createdAt      TimestamptzString   @default(now())
+}
+
+
+// ======================================================
+// PURCHASE PAYMENT
+//
+// Supplier ko multiple payments ki history.
+//
+// Example:
+//
+// Purchase = 100000
+//
+// Payment 1 = 50000 Cash
+// Payment 2 = 30000 Bank
+// Payment 3 = 20000 Cash
+// ======================================================
+
+model PurchasePayment {
+  id             Int                 @id @default(autoincrement())
+
+  purchaseId     Int
+
+  purchase       Purchase            @relation(
+    fields: [purchaseId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  // Cash | Bank | Credit | Other
+  method         String              @default("Cash")
+
+  amount         Float
+
+  createdAt      TimestamptzString   @default(now())
+}
+
+
+// ======================================================
+// BRANCH
+// ======================================================
+
+model Branch {
+  id          Int               @id @default(autoincrement())
+
+  name        String
+  code        String            @unique
+
+  manager     String            @default("")
+  phone       String            @default("")
+  address     String            @default("")
+
+  // Active | Inactive
+  status      String            @default("Active")
+
+  createdAt   TimestamptzString @default(now())
+  updatedAt   temporal.updatedAtString()
+
+  users       AppUser[]
+}
+
+
+// ======================================================
+// ROLE
+// ======================================================
+
+model Role {
+  id          Int               @id @default(autoincrement())
+
+  name        String            @unique
+  description String            @default("")
+
+  createdAt   TimestamptzString @default(now())
+  updatedAt   temporal.updatedAtString()
+
+  users       AppUser[]
+  permissions RolePermission[]
+}
+
+
+// ======================================================
+// ROLE PERMISSION
+// ======================================================
+
+model RolePermission {
+  id          Int               @id @default(autoincrement())
+
+  roleId      Int
+
+  role        Role              @relation(
+    fields: [roleId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  // dashboard
+  // pos
+  // products
+  // inventory
+  // purchases
+  // sales
+  // returns
+  // customers
+  // suppliers
+  // expenses
+  // reports
+  // notifications
+  // users
+  // branches
+  // settings
+  // auditLogs
+  permission  String
+
+  createdAt   TimestamptzString @default(now())
+
+  @@unique([roleId, permission])
+}
+
+
+// ======================================================
+// APPLICATION USER
+// ======================================================
+
+model AppUser {
+  id            Int               @id @default(autoincrement())
+
+  name          String
+  email         String            @unique
+  phone         String            @default("")
+
+  // Future authentication ke liye.
+  // Plain password kabhi store nahi karna.
+  passwordHash  String            @default("")
+
+  // Active | Inactive
+  status        String            @default("Active")
+
+  branchId      Int?
+
+  branch        Branch?           @relation(
+    fields: [branchId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  roleId        Int?
+
+  role          Role?             @relation(
+    fields: [roleId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  lastLoginAt   TimestamptzString?
+
+  createdAt     TimestamptzString @default(now())
+  updatedAt     temporal.updatedAtString()
+
+  notifications Notification[]
+  auditLogs      AuditLog[]
+}
+
+
+// ======================================================
+// APPLICATION SETTINGS
+//
+// Single row POS configuration.
+// ======================================================
+
+model Setting {
+  id                Int               @id @default(autoincrement())
+
+  // ========================================
+  // BUSINESS
+  // ========================================
+
+  businessName      String            @default("Hafiz Retail POS")
+  phone             String            @default("")
+  email             String            @default("")
+  address           String            @default("")
+
+  currency          String            @default("PKR")
+
+  // ========================================
+  // INVOICE
+  // ========================================
+
+  invoicePrefix     String            @default("INV-")
+
+  // ========================================
+  // TAX
+  // ========================================
+
+  taxEnabled        Boolean           @default(false)
+  taxRate           Float             @default(0)
+
+  // ========================================
+  // INVENTORY
+  // ========================================
+
+  lowStockAlert     Boolean           @default(true)
+  lowStockLimit     Float             @default(5)
+
+  // ========================================
+  // NOTIFICATIONS
+  // ========================================
+
+  whatsappEnabled   Boolean           @default(false)
+
+  // ========================================
+  // PRINTING
+  // ========================================
+
+  autoPrint         Boolean           @default(false)
+
+  createdAt         TimestamptzString @default(now())
+  updatedAt         temporal.updatedAtString()
+}
+
+
+// ======================================================
+// NOTIFICATION
+// ======================================================
+
+model Notification {
+  id            Int               @id @default(autoincrement())
+
+  // Sale
+  // Payment
+  // Stock
+  // Return
+  // Expense
+  // Purchase
+  // System
+  type          String
+
+  title         String
+  message       String
+
+  isRead        Boolean           @default(false)
+
+  // null = global/system notification
+  userId        Int?
+
+  user          AppUser?          @relation(
+    fields: [userId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  createdAt     TimestamptzString @default(now())
+}
+
+
+// ======================================================
+// AUDIT LOG
+// ======================================================
+
+model AuditLog {
+  id            Int               @id @default(autoincrement())
+
+  // Sale
+  // Purchase
+  // Product
+  // Customer
+  // Supplier
+  // User
+  // Branch
+  // Settings
+  // Return
+  // Expense
+  module        String
+
+  action        String
+
+  description   String            @default("")
+
+  // Success | Warning | Failed
+  status        String            @default("Success")
+
+  ipAddress     String            @default("")
+
+  userId        Int?
+
+  user          AppUser?          @relation(
+    fields: [userId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  // Snapshot fields.
+  // User delete hone ke baad bhi log understandable rahe.
+  userName      String            @default("")
+  userRole      String            @default("")
+
+  createdAt     TimestamptzString @default(now())
 }
