@@ -1,77 +1,42 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
+  type FormEvent,
 } from "react";
 
-type ProductType =
-  | "weight"
-  | "quantity"
-  | "size";
+import InvoiceItems from "./inoviceItems";
+import InvoiceSummary from "./invoiceSummary";
+import InvoicePrint from "./InvoicePrint";
 
-type Bundle = {
-  id: number;
-  name: string;
-  weight: string;
-};
+import type {
+  Customer,
+  InvoiceItem,
+  PaymentMethod,
+  Product,
+  ProductType,
+} from "./invoiceTypes";
 
-type Product = {
-  id: number;
-  name: string;
-  category: string;
-  type: ProductType;
-  unit: string;
-  purchasePrice: number;
-  sellingPrice: number;
-  quantity: number;
-  size: string;
-  material: string;
-  brand: string;
-  model: string;
-  quality: string;
-  color: string;
-  bundles: Bundle[];
-};
+import {
+  calculateInvoiceTotals,
+  createEmptyInvoiceItem,
+  getCurrentDate,
+  getInvoiceStatus,
+  getProductStock,
+} from "./InvoiceUtils";
 
-type InvoiceItem = {
-  id: number;
-  productId: number;
-  productName: string;
-  quantity: number;
-  rate: number;
-};
-
-const PRODUCT_KEY =
-  "hafiz_products";
-
-const INVOICE_KEY =
-  "hafiz_invoice_number";
-
-const TAX_RATE =
-  0.05;
-
-const firstItem: InvoiceItem =
-  {
-    id: 1,
-    productId: 0,
-    productName: "",
-    quantity: 1,
-    rate: 0,
-  };
-
-/* ============================
-   PRODUCT NORMALIZER
-============================ */
+/* =========================================
+   NORMALIZE PRODUCT
+========================================= */
 
 function normalizeProduct(
   value: unknown
 ): Product | null {
   if (
-    typeof value !==
-      "object" ||
+    typeof value !== "object" ||
     value === null
   ) {
     return null;
@@ -87,70 +52,17 @@ function normalizeProduct(
     raw.type;
 
   const type: ProductType =
-    rawType ===
-      "weight" ||
-    rawType ===
-      "size" ||
-    rawType ===
-      "quantity"
+    rawType === "weight" ||
+    rawType === "quantity" ||
+    rawType === "size"
       ? rawType
       : "quantity";
 
-  const bundles: Bundle[] =
-    Array.isArray(
-      raw.bundles
-    )
-      ? raw.bundles.map(
-          (
-            bundleValue,
-            index
-          ) => {
-            const bundle =
-              typeof bundleValue ===
-                "object" &&
-              bundleValue !==
-                null
-                ? (bundleValue as Record<
-                    string,
-                    unknown
-                  >)
-                : {};
-
-            return {
-              id:
-                Number(
-                  bundle.id
-                ) ||
-                index +
-                  1,
-
-              name:
-                String(
-                  bundle.name ||
-                    `B-${String(
-                      index +
-                        1
-                    ).padStart(
-                      3,
-                      "0"
-                    )}`
-                ),
-
-              weight:
-                String(
-                  Number(
-                    bundle.weight
-                  ) || 0
-                ),
-            };
-          }
-        )
-      : [];
-
   return {
     id:
-      Number(raw.id) ||
-      0,
+      Number(
+        raw.id
+      ) || 0,
 
     name:
       String(
@@ -166,8 +78,7 @@ function normalizeProduct(
     type,
 
     unit:
-      type ===
-      "weight"
+      type === "weight"
         ? "KG"
         : String(
             raw.unit ||
@@ -185,9 +96,22 @@ function normalizeProduct(
       ) || 0,
 
     quantity:
-      Number(
-        raw.quantity
-      ) || 0,
+      type === "weight"
+        ? 0
+        : Math.max(
+            0,
+            Number(
+              raw.quantity
+            ) || 0
+          ),
+
+    weightEntries:
+      type === "weight"
+        ? String(
+            raw.weightEntries ||
+              ""
+          )
+        : "",
 
     size:
       String(
@@ -212,20 +136,47 @@ function normalizeProduct(
 
     quality:
       String(
-        raw.quality ||
-          ""
+        raw.quality || ""
       ),
 
     color:
       String(
         raw.color || ""
       ),
-
-    bundles,
   };
 }
 
+/* =========================================
+   API ERROR MESSAGE
+========================================= */
+
+async function getErrorMessage(
+  response: Response
+) {
+  try {
+    const data =
+      (await response.json()) as {
+        message?: string;
+      };
+
+    return (
+      data.message ||
+      "Something went wrong."
+    );
+  } catch {
+    return "Something went wrong.";
+  }
+}
+
+/* =========================================
+   MAIN PAGE
+========================================= */
+
 export default function InvoicePage() {
+  /* =========================================
+     PRODUCTS
+  ========================================= */
+
   const [
     products,
     setProducts,
@@ -235,10 +186,28 @@ export default function InvoicePage() {
     );
 
   const [
+    loadingProducts,
+    setLoadingProducts,
+  ] =
+    useState(true);
+
+  const [
+    productError,
+    setProductError,
+  ] =
+    useState("");
+
+  /* =========================================
+     INVOICE
+  ========================================= */
+
+  const [
     invoiceNumber,
     setInvoiceNumber,
   ] =
-    useState("INV-1");
+    useState(
+      "AUTO"
+    );
 
   const [
     invoiceDate,
@@ -246,627 +215,301 @@ export default function InvoicePage() {
   ] =
     useState("");
 
-  const [
-    customerName,
-    setCustomerName,
-  ] =
-    useState("");
+  /* =========================================
+     CUSTOMER
+  ========================================= */
 
   const [
-    customerPhone,
-    setCustomerPhone,
+    customer,
+    setCustomer,
   ] =
-    useState("");
+    useState<Customer>({
+      name: "",
+      phone: "",
+      address: "",
+    });
 
-  const [
-    paidAmount,
-    setPaidAmount,
-  ] =
-    useState("");
+  /* =========================================
+     ITEMS
+  ========================================= */
 
   const [
     items,
     setItems,
   ] =
-    useState<
-      InvoiceItem[]
-    >([
-      firstItem,
-    ]);
-
-  const nextItemId =
-    useRef(2);
-
-  /* ============================
-     INITIAL LOAD
-  ============================ */
-
-  useEffect(() => {
-    loadProducts();
-    loadInvoiceNumber();
-    updateDate();
-  }, []);
-
-  /* ============================
-     RELOAD WHEN TAB ACTIVE
-  ============================ */
-
-  useEffect(() => {
-    function handleFocus() {
-      loadProducts();
-    }
-
-    window.addEventListener(
-      "focus",
-      handleFocus
+    useState<InvoiceItem[]>(
+      []
     );
 
-    return () => {
-      window.removeEventListener(
-        "focus",
-        handleFocus
-      );
-    };
-  }, []);
+  /* =========================================
+     PAYMENT
+  ========================================= */
 
-  /* ============================
-     LOAD PRODUCTS
-  ============================ */
+  const [
+    paymentMethod,
+    setPaymentMethod,
+  ] =
+    useState<PaymentMethod>(
+      "Cash"
+    );
 
-  function loadProducts() {
-    try {
-      const saved =
-        localStorage.getItem(
-          PRODUCT_KEY
-        );
+  const [
+    amountPaid,
+    setAmountPaid,
+  ] =
+    useState(0);
 
-      if (!saved) {
-        setProducts([]);
-        return;
-      }
+  /* =========================================
+     TAX
 
-      const parsed:
-        unknown =
-        JSON.parse(saved);
+     Default = 0%
+  ========================================= */
 
-      if (
-        !Array.isArray(
-          parsed
-        )
-      ) {
-        setProducts([]);
-        return;
-      }
+  const [
+    taxRate,
+    setTaxRate,
+  ] =
+    useState(0);
 
-      const cleanProducts =
-        parsed
-          .map(
-            normalizeProduct
-          )
-          .filter(
-            (
-              product
-            ): product is Product =>
-              product !==
-                null &&
-              product.id >
-                0
-          );
+  /* =========================================
+     NOTES
+  ========================================= */
 
-      setProducts(
-        cleanProducts
-      );
-    } catch {
-      setProducts([]);
-    }
-  }
+  const [
+    notes,
+    setNotes,
+  ] =
+    useState("");
 
-  /* ============================
-     INVOICE NUMBER
-  ============================ */
+  /* =========================================
+     SAVE STATE
+  ========================================= */
 
-  function loadInvoiceNumber() {
-    try {
-      const saved =
-        localStorage.getItem(
-          INVOICE_KEY
-        );
+  const [
+    invoiceSaved,
+    setInvoiceSaved,
+  ] =
+    useState(false);
 
-      let number =
-        Number(
-          saved || "1"
-        );
+  const [
+    saving,
+    setSaving,
+  ] =
+    useState(false);
 
-      if (
-        !Number.isFinite(
-          number
-        ) ||
-        number < 1
-      ) {
-        number = 1;
+  /* =========================================
+     INITIAL INVOICE
+  ========================================= */
 
-        localStorage.setItem(
-          INVOICE_KEY,
-          "1"
-        );
-      }
-
-      setInvoiceNumber(
-        `INV-${Math.floor(
-          number
-        )}`
-      );
-    } catch {
-      setInvoiceNumber(
-        "INV-1"
-      );
-    }
-  }
-
-  /* ============================
-     DATE
-  ============================ */
-
-  function updateDate() {
-    const now =
-      new Date();
+  useEffect(() => {
+    setInvoiceNumber(
+      "AUTO"
+    );
 
     setInvoiceDate(
-      now.toLocaleString(
-        "en-PK",
-        {
-          dateStyle:
-            "medium",
-
-          timeStyle:
-            "short",
-        }
-      )
+      getCurrentDate()
     );
-  }
 
-  /* ============================
-     STOCK
-  ============================ */
+    setItems([
+      createEmptyInvoiceItem(),
+    ]);
 
-  function getStock(
-    product: Product
-  ) {
-    if (
-      product.type ===
-      "weight"
-    ) {
-      return product.bundles.reduce(
-        (
-          total,
-          bundle
-        ) =>
-          total +
-          (Number(
-            bundle.weight
-          ) || 0),
-        0
+    setTaxRate(
+      0
+    );
+  }, []);
+
+  /* =========================================
+     LOAD PRODUCTS FROM DATABASE
+  ========================================= */
+
+  const loadProducts =
+    useCallback(
+      async () => {
+        try {
+          setLoadingProducts(
+            true
+          );
+
+          setProductError("");
+
+          const response =
+            await fetch(
+              "/api/products",
+              {
+                method:
+                  "GET",
+
+                cache:
+                  "no-store",
+              }
+            );
+
+          if (
+            !response.ok
+          ) {
+            throw new Error(
+              await getErrorMessage(
+                response
+              )
+            );
+          }
+
+          const data:
+            unknown =
+            await response.json();
+
+          if (
+            !Array.isArray(
+              data
+            )
+          ) {
+            throw new Error(
+              "Invalid products response."
+            );
+          }
+
+          const cleanProducts =
+            data
+              .map(
+                normalizeProduct
+              )
+              .filter(
+                (
+                  product
+                ): product is Product =>
+                  product !==
+                    null &&
+                  product.id >
+                    0
+              );
+
+          setProducts(
+            cleanProducts
+          );
+        } catch (error) {
+          console.error(
+            "LOAD PRODUCTS ERROR:",
+            error
+          );
+
+          setProducts(
+            []
+          );
+
+          setProductError(
+            error instanceof
+              Error
+              ? error.message
+              : "Unable to load products."
+          );
+        } finally {
+          setLoadingProducts(
+            false
+          );
+        }
+      },
+      []
+    );
+
+  /* =========================================
+     LOAD PRODUCTS ON PAGE OPEN
+  ========================================= */
+
+  useEffect(() => {
+    void loadProducts();
+  }, [
+    loadProducts,
+  ]);
+
+  /* =========================================
+     TOTALS
+  ========================================= */
+
+  const totals =
+    useMemo(() => {
+      return calculateInvoiceTotals(
+        items,
+        amountPaid,
+        taxRate
       );
-    }
+    }, [
+      items,
+      amountPaid,
+      taxRate,
+    ]);
 
-    return Math.max(
-      0,
-      Number(
-        product.quantity
-      ) || 0
-    );
-  }
+  /* =========================================
+     PAYMENT STATUS
+  ========================================= */
 
-  function getUnit(
-    product: Product
-  ) {
-    if (
-      product.type ===
-      "weight"
-    ) {
-      return "KG";
-    }
+  const status =
+    useMemo(() => {
+      return getInvoiceStatus(
+        totals.grandTotal,
+        amountPaid
+      );
+    }, [
+      totals.grandTotal,
+      amountPaid,
+    ]);
 
-    return (
-      product.unit ||
-      "PCS"
-    );
-  }
-
-  /* ============================
-     PRICE
-  ============================ */
-
-  function formatPrice(
-    value: number
-  ) {
-    return (
-      "Rs. " +
-      Number(
-        value || 0
-      ).toLocaleString(
-        "en-PK",
-        {
-          minimumFractionDigits:
-            2,
-
-          maximumFractionDigits:
-            2,
-        }
-      )
-    );
-  }
-
-  /* ============================
+  /* =========================================
      ADD ITEM
-  ============================ */
+  ========================================= */
 
   function addItem() {
-    const id =
-      nextItemId.current;
+    /*
+     * Saved invoice cannot change.
+     */
 
-    nextItemId.current +=
-      1;
+    if (
+      invoiceSaved
+    ) {
+      return;
+    }
 
     setItems(
-      (current) => [
+      (
+        current
+      ) => [
         ...current,
-
-        {
-          id,
-          productId: 0,
-          productName: "",
-          quantity: 1,
-          rate: 0,
-        },
+        createEmptyInvoiceItem(),
       ]
     );
   }
 
-  /* ============================
-     REMOVE ITEM
-  ============================ */
-
-  function removeItem(
-    id: number
-  ) {
-    setItems(
-      (current) => {
-        if (
-          current.length ===
-          1
-        ) {
-          return current;
-        }
-
-        return current.filter(
-          (item) =>
-            item.id !== id
-        );
-      }
-    );
-  }
-
-  /* ============================
-     SELECT PRODUCT
-  ============================ */
-
-  function selectProduct(
-    itemId: number,
-    productId: number
-  ) {
-    const product =
-      products.find(
-        (current) =>
-          current.id ===
-          productId
-      );
-
-    if (!product) {
-      setItems(
-        (current) =>
-          current.map(
-            (item) =>
-              item.id ===
-              itemId
-                ? {
-                    ...item,
-
-                    productId:
-                      0,
-
-                    productName:
-                      "",
-
-                    quantity:
-                      1,
-
-                    rate: 0,
-                  }
-                : item
-          )
-      );
-
-      return;
-    }
-
-    const stock =
-      getStock(
-        product
-      );
-
-    if (stock <= 0) {
-      alert(
-        `${product.name} is out of stock.`
-      );
-
-      return;
-    }
-
-    setItems(
-      (current) =>
-        current.map(
-          (item) =>
-            item.id ===
-            itemId
-              ? {
-                  ...item,
-
-                  productId:
-                    product.id,
-
-                  productName:
-                    product.name,
-
-                  quantity:
-                    product.type ===
-                    "weight"
-                      ? 1
-                      : 1,
-
-                  rate:
-                    product.sellingPrice,
-                }
-              : item
-        )
-    );
-  }
-
-  /* ============================
-     QUANTITY
-  ============================ */
-
-  function updateQuantity(
-    itemId: number,
-    value: string
-  ) {
-    const item =
-      items.find(
-        (current) =>
-          current.id ===
-          itemId
-      );
-
-    if (
-      !item ||
-      item.productId ===
-        0
-    ) {
-      return;
-    }
-
-    const product =
-      products.find(
-        (current) =>
-          current.id ===
-          item.productId
-      );
-
-    if (!product) {
-      return;
-    }
-
-    let quantity =
-      Number(value);
-
-    if (
-      !Number.isFinite(
-        quantity
-      )
-    ) {
-      quantity = 0;
-    }
-
-    quantity =
-      Math.max(
-        0,
-        quantity
-      );
-
-    if (
-      product.type !==
-      "weight"
-    ) {
-      quantity =
-        Math.floor(
-          quantity
-        );
-    }
-
-    const stock =
-      getStock(
-        product
-      );
-
-    const usedElsewhere =
-      items
-        .filter(
-          (current) =>
-            current.id !==
-              itemId &&
-            current.productId ===
-              product.id
-        )
-        .reduce(
-          (
-            total,
-            current
-          ) =>
-            total +
-            Number(
-              current.quantity
-            ),
-          0
-        );
-
-    const available =
-      Math.max(
-        0,
-        stock -
-          usedElsewhere
-      );
-
-    if (
-      quantity >
-      available
-    ) {
-      alert(
-        `Available stock: ${available} ${getUnit(
-          product
-        )}`
-      );
-
-      quantity =
-        available;
-    }
-
-    setItems(
-      (current) =>
-        current.map(
-          (
-            currentItem
-          ) =>
-            currentItem.id ===
-            itemId
-              ? {
-                  ...currentItem,
-                  quantity,
-                }
-              : currentItem
-        )
-    );
-  }
-
-  /* ============================
-     RATE
-  ============================ */
-
-  function updateRate(
-    itemId: number,
-    value: string
-  ) {
-    let rate =
-      Number(value);
-
-    if (
-      !Number.isFinite(
-        rate
-      )
-    ) {
-      rate = 0;
-    }
-
-    rate =
-      Math.max(
-        0,
-        rate
-      );
-
-    setItems(
-      (current) =>
-        current.map(
-          (item) =>
-            item.id ===
-            itemId
-              ? {
-                  ...item,
-                  rate,
-                }
-              : item
-        )
-    );
-  }
-
-  /* ============================
-     TOTALS
-  ============================ */
-
-  const subtotal =
-    useMemo(() => {
-      return items.reduce(
-        (
-          total,
-          item
-        ) =>
-          total +
-          Number(
-            item.quantity
-          ) *
-            Number(
-              item.rate
-            ),
-        0
-      );
-    }, [
-      items,
-    ]);
-
-  const tax =
-    subtotal *
-    TAX_RATE;
-
-  const total =
-    subtotal +
-    tax;
-
-  const paid =
-    Math.max(
-      0,
-      Number(
-        paidAmount
-      ) || 0
-    );
-
-  const remaining =
-    Math.max(
-      0,
-      total - paid
-    );
-
-  const change =
-    Math.max(
-      0,
-      paid - total
-    );
-
-  /* ============================
-     VALID ITEMS
-  ============================ */
+  /* =========================================
+     GET VALID ITEMS
+  ========================================= */
 
   function getValidItems() {
     return items.filter(
-      (item) =>
-        item.productId >
-          0 &&
-        item.quantity > 0
+      (
+        item
+      ) =>
+        item.productId !==
+          null &&
+        (
+          item.type ===
+          "weight"
+            ? Number(
+                item.weight
+              ) > 0
+            : Number(
+                item.quantity
+              ) > 0
+        )
     );
   }
 
-  /* ============================
-     VALIDATE
-  ============================ */
+  /* =========================================
+     VALIDATE CURRENT STOCK
 
-  function validateInvoice() {
+     ONLY FOR UNSAVED INVOICE
+  ========================================= */
+
+  function validateStock() {
     const validItems =
       getValidItems();
 
@@ -875,11 +518,16 @@ export default function InvoicePage() {
       0
     ) {
       alert(
-        "Select at least one product."
+        "Please select at least one product."
       );
 
       return false;
     }
+
+    /*
+     * Same product multiple rows
+     * mein ho sakta hai.
+     */
 
     const soldMap =
       new Map<
@@ -887,31 +535,54 @@ export default function InvoicePage() {
         number
       >();
 
-    validItems.forEach(
-      (item) => {
-        soldMap.set(
-          item.productId,
-
-          (soldMap.get(
-            item.productId
-          ) || 0) +
-            item.quantity
-        );
+    for (
+      const item of
+      validItems
+    ) {
+      if (
+        item.productId ===
+        null
+      ) {
+        continue;
       }
-    );
+
+      const sold =
+        item.type ===
+        "weight"
+          ? Number(
+              item.weight
+            ) || 0
+          : Number(
+              item.quantity
+            ) || 0;
+
+      soldMap.set(
+        item.productId,
+
+        (
+          soldMap.get(
+            item.productId
+          ) || 0
+        ) + sold
+      );
+    }
 
     for (const [
       productId,
-      soldQuantity,
+      soldAmount,
     ] of soldMap) {
       const product =
         products.find(
-          (current) =>
+          (
+            current
+          ) =>
             current.id ===
             productId
         );
 
-      if (!product) {
+      if (
+        !product
+      ) {
         alert(
           "Product not found."
         );
@@ -920,18 +591,25 @@ export default function InvoicePage() {
       }
 
       const stock =
-        getStock(
+        getProductStock(
           product
         );
 
       if (
-        soldQuantity >
+        soldAmount >
         stock
       ) {
         alert(
-          `${product.name} has only ${stock} ${getUnit(
-            product
-          )}`
+          `${product.name} has only ${Number(
+            stock.toFixed(
+              2
+            )
+          )} ${
+            product.type ===
+            "weight"
+              ? "KG"
+              : product.unit
+          } available.`
         );
 
         return false;
@@ -941,284 +619,341 @@ export default function InvoicePage() {
     return true;
   }
 
-  /* ============================
-     REDUCE COTTON BUNDLES
-  ============================ */
+  /* =========================================
+     VALIDATE UNSAVED INVOICE
+  ========================================= */
 
-  function reduceWeight(
-    product: Product,
-    soldWeight: number
-  ) {
-    let weightToRemove =
-      soldWeight;
+  function validateInvoice() {
+    /*
+     * Saved invoice has already
+     * passed validation and backend
+     * stock validation.
+     */
 
-    const bundles =
-      product.bundles
-        .map(
-          (bundle) => {
-            const currentWeight =
-              Number(
-                bundle.weight
-              ) || 0;
+    if (
+      invoiceSaved
+    ) {
+      return true;
+    }
 
-            if (
-              weightToRemove <=
-              0
-            ) {
-              return bundle;
-            }
+    if (
+      !validateStock()
+    ) {
+      return false;
+    }
 
-            if (
-              currentWeight <=
-              weightToRemove
-            ) {
-              weightToRemove -=
-                currentWeight;
+    if (
+      totals.grandTotal <=
+      0
+    ) {
+      alert(
+        "Invoice total must be greater than 0."
+      );
 
-              return {
-                ...bundle,
-                weight: "0",
-              };
-            }
+      return false;
+    }
 
-            const newWeight =
-              currentWeight -
-              weightToRemove;
+    if (
+      taxRate < 0
+    ) {
+      alert(
+        "Tax rate cannot be negative."
+      );
 
-            weightToRemove =
-              0;
+      return false;
+    }
 
-            return {
-              ...bundle,
-
-              weight:
-                String(
-                  Number(
-                    newWeight.toFixed(
-                      2
-                    )
-                  )
-                ),
-            };
-          }
-        )
-        .filter(
-          (bundle) =>
-            Number(
-              bundle.weight
-            ) > 0
-        );
-
-    return {
-      ...product,
-      bundles,
-    };
+    return true;
   }
 
-  /* ============================
+  /* =========================================
      SAVE INVOICE
-  ============================ */
+  ========================================= */
 
-  function saveInvoice() {
+  async function saveInvoice() {
+    /* Already saved */
+
+    if (
+      invoiceSaved
+    ) {
+      alert(
+        "Invoice already saved."
+      );
+
+      return;
+    }
+
+    /* Validate */
+
     if (
       !validateInvoice()
     ) {
       return;
     }
 
-    const validItems =
-      getValidItems();
-
-    const soldMap =
-      new Map<
-        number,
-        number
-      >();
-
-    validItems.forEach(
-      (item) => {
-        soldMap.set(
-          item.productId,
-
-          (soldMap.get(
-            item.productId
-          ) || 0) +
-            item.quantity
-        );
-      }
-    );
-
-    const updatedProducts =
-      products.map(
-        (product) => {
-          const sold =
-            soldMap.get(
-              product.id
-            ) || 0;
-
-          if (
-            sold <= 0
-          ) {
-            return product;
-          }
-
-          if (
-            product.type ===
-            "weight"
-          ) {
-            return reduceWeight(
-              product,
-              sold
-            );
-          }
-
-          return {
-            ...product,
-
-            quantity:
-              Math.max(
-                0,
-                product.quantity -
-                  sold
-              ),
-          };
-        }
-      );
-
     try {
-      localStorage.setItem(
-        PRODUCT_KEY,
-
-        JSON.stringify(
-          updatedProducts
-        )
+      setSaving(
+        true
       );
 
-      setProducts(
-        updatedProducts
-      );
+      const validItems =
+        getValidItems();
 
-      let number =
-        Number(
-          localStorage.getItem(
-            INVOICE_KEY
-          ) || "1"
+      /* =====================================
+         BUILD PAYLOAD
+      ===================================== */
+
+      const payload = {
+        /*
+         * Final invoice number backend
+         * database ID se generate karega.
+         */
+
+        customer: {
+          name:
+            customer.name.trim(),
+
+          phone:
+            customer.phone.trim(),
+
+          address:
+            customer.address.trim(),
+        },
+
+        items:
+          validItems.map(
+            (
+              item
+            ) => ({
+              productId:
+                item.productId as number,
+
+              name:
+                item.name,
+
+              type:
+                item.type,
+
+              unit:
+                item.unit,
+
+              quantity:
+                Number(
+                  item.quantity
+                ) || 0,
+
+              weight:
+                Number(
+                  item.weight
+                ) || 0,
+
+              price:
+                Number(
+                  item.price
+                ) || 0,
+
+              discount:
+                Number(
+                  item.discount
+                ) || 0,
+
+              total:
+                Number(
+                  item.total
+                ) || 0,
+            })
+          ),
+
+        paymentMethod,
+
+        amountPaid:
+          Number(
+            amountPaid
+          ) || 0,
+
+        taxRate:
+          Number(
+            taxRate
+          ) || 0,
+
+        subtotal:
+          totals.subtotal,
+
+        discount:
+          totals.discount,
+
+        tax:
+          totals.tax,
+
+        grandTotal:
+          totals.grandTotal,
+
+        remaining:
+          totals.remaining,
+
+        change:
+          totals.change,
+
+        status,
+
+        notes:
+          notes.trim(),
+      };
+
+      /* =====================================
+         SAVE TO POSTGRESQL
+      ===================================== */
+
+      const response =
+        await fetch(
+          "/api/invoices",
+          {
+            method:
+              "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body:
+              JSON.stringify(
+                payload
+              ),
+          }
         );
+
+      /* =====================================
+         ERROR
+      ===================================== */
 
       if (
-        !Number.isFinite(
-          number
-        ) ||
-        number < 1
+        !response.ok
       ) {
-        number = 1;
+        throw new Error(
+          await getErrorMessage(
+            response
+          )
+        );
       }
 
-      const nextNumber =
-        Math.floor(
-          number
-        ) + 1;
+      /* =====================================
+         RESPONSE
+      ===================================== */
 
-      localStorage.setItem(
-        INVOICE_KEY,
-        String(
-          nextNumber
-        )
+      const data =
+        (await response.json()) as {
+          message?: string;
+
+          invoice?: {
+            invoiceId?: number;
+
+            invoiceNumber?: string;
+
+            status?: string;
+
+            total?: number;
+
+            paidAmount?: number;
+
+            remainingBalance?: number;
+          };
+        };
+
+      /* =====================================
+         FINAL INVOICE NUMBER
+
+         Example:
+         INV-0001
+      ===================================== */
+
+      if (
+        data.invoice
+          ?.invoiceNumber
+      ) {
+        setInvoiceNumber(
+          data.invoice.invoiceNumber
+        );
+      }
+
+      /* =====================================
+         MARK AS SAVED
+
+         From now on Print/Reprint
+         will NOT check stock.
+      ===================================== */
+
+      setInvoiceSaved(
+        true
+      );
+
+      /*
+       * VERY IMPORTANT:
+       *
+       * DO NOT loadProducts() here.
+       *
+       * Database stock has already
+       * been deducted by backend,
+       * but current invoice should
+       * keep its original stock snapshot.
+       *
+       * New invoice will reload
+       * latest database stock.
+       */
+
+      alert(
+        data.message ||
+          "Invoice saved successfully. Stock updated."
+      );
+    } catch (error) {
+      console.error(
+        "SAVE INVOICE ERROR:",
+        error
       );
 
       alert(
-        "Invoice saved successfully. Product stock updated."
+        error instanceof
+          Error
+          ? error.message
+          : "Unable to save invoice."
       );
-
-      setInvoiceNumber(
-        `INV-${nextNumber}`
-      );
-
-      resetForm();
-    } catch {
-      alert(
-        "Could not save invoice."
+    } finally {
+      setSaving(
+        false
       );
     }
   }
 
-  /* ============================
-     RESET FORM
-  ============================ */
+  /* =========================================
+     PRINT / REPRINT
 
-  function resetForm() {
-    setCustomerName(
-      ""
-    );
-
-    setCustomerPhone(
-      ""
-    );
-
-    setPaidAmount(
-      ""
-    );
-
-    setItems([
-      {
-        id: 1,
-
-        productId:
-          0,
-
-        productName:
-          "",
-
-        quantity:
-          1,
-
-        rate: 0,
-      },
-    ]);
-
-    nextItemId.current =
-      2;
-
-    updateDate();
-  }
-
-  /* ============================
-     NEW INVOICE
-  ============================ */
-
-  function newInvoice() {
-    resetForm();
-
-    loadProducts();
-
-    let number =
-      Number(
-        localStorage.getItem(
-          INVOICE_KEY
-        ) || "1"
-      );
-
-    if (
-      !Number.isFinite(
-        number
-      ) ||
-      number < 1
-    ) {
-      number = 1;
-    }
-
-    setInvoiceNumber(
-      `INV-${Math.floor(
-        number
-      )}`
-    );
-  }
-
-  /* ============================
-     PRINT
-  ============================ */
+     THIS FIXES YOUR MAIN BUG
+  ========================================= */
 
   function printInvoice() {
+    /*
+     * SAVED INVOICE:
+     *
+     * Stock already deducted.
+     * Do NOT check live stock.
+     * Do NOT POST again.
+     * Do NOT deduct anything.
+     */
+
+    if (
+      invoiceSaved
+    ) {
+      window.print();
+
+      return;
+    }
+
+    /*
+     * UNSAVED INVOICE:
+     *
+     * Validation can run.
+     */
+
     if (
       !validateInvoice()
     ) {
@@ -1228,18 +963,151 @@ export default function InvoicePage() {
     window.print();
   }
 
+  /* =========================================
+     NEW INVOICE
+  ========================================= */
+
+  async function newInvoice() {
+    const hasItems =
+      getValidItems().length >
+      0;
+
+    /*
+     * Unsaved invoice warning.
+     */
+
+    if (
+      hasItems &&
+      !invoiceSaved
+    ) {
+      const confirmed =
+        window.confirm(
+          "Current invoice is not saved. Create a new invoice?"
+        );
+
+      if (
+        !confirmed
+      ) {
+        return;
+      }
+    }
+
+    /* =====================================
+       RESET INVOICE
+    ===================================== */
+
+    setInvoiceNumber(
+      "AUTO"
+    );
+
+    setInvoiceDate(
+      getCurrentDate()
+    );
+
+    setCustomer({
+      name: "",
+      phone: "",
+      address: "",
+    });
+
+    setItems([
+      createEmptyInvoiceItem(),
+    ]);
+
+    setPaymentMethod(
+      "Cash"
+    );
+
+    setAmountPaid(
+      0
+    );
+
+    setTaxRate(
+      0
+    );
+
+    setNotes(
+      ""
+    );
+
+    setInvoiceSaved(
+      false
+    );
+
+    /*
+     * NOW load fresh reduced stock.
+     *
+     * Example:
+     *
+     * Before Sale = 3 PCS
+     * Saved Sale = 1 PCS
+     * Database = 2 PCS
+     *
+     * New Invoice = 2 PCS
+     */
+
+    await loadProducts();
+  }
+
+  /* =========================================
+     CUSTOMER UPDATE
+  ========================================= */
+
+  function updateCustomer(
+    field:
+      keyof Customer,
+
+    value:
+      string
+  ) {
+    if (
+      invoiceSaved
+    ) {
+      return;
+    }
+
+    setCustomer(
+      (
+        current
+      ) => ({
+        ...current,
+
+        [field]:
+          value,
+      })
+    );
+  }
+
+  /* =========================================
+     FORM SUBMIT BLOCK
+  ========================================= */
+
+  function preventSubmit(
+    event:
+      FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+  }
+
+  /* =========================================
+     UI
+  ========================================= */
+
   return (
     <>
-
-      {/* SCREEN */}
+      {/* =====================================
+          SCREEN
+      ===================================== */}
 
       <div className="min-h-screen bg-slate-50 p-4 md:p-6 print:hidden">
 
-        <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-7xl space-y-6">
 
-          {/* HEADER */}
+          {/* =================================
+              HEADER
+          ================================= */}
 
-          <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 
             <div>
 
@@ -1253,965 +1121,415 @@ export default function InvoicePage() {
 
             </div>
 
-            <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                void newInvoice()
+              }
+              className="w-fit rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100"
+            >
+              + New Invoice
+            </button>
+
+          </header>
+
+          {/* =================================
+              PRODUCT ERROR
+          ================================= */}
+
+          {productError && (
+
+            <div className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+
+              <span className="text-sm font-semibold text-red-700">
+                {productError}
+              </span>
 
               <button
                 type="button"
-                onClick={
-                  newInvoice
+                onClick={() =>
+                  void loadProducts()
                 }
-                className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold"
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white"
               >
-                New Invoice
+                Retry
               </button>
+
+            </div>
+
+          )}
+
+          {/* =================================
+              INVOICE INFORMATION
+          ================================= */}
+
+          <form
+            onSubmit={
+              preventSubmit
+            }
+            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+          >
+
+            <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
+              <div>
+
+                <h2 className="text-lg font-bold text-slate-900">
+                  Invoice Information
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Customer and invoice details
+                </p>
+
+              </div>
+
+              <div className="flex items-center gap-2">
+
+                {invoiceSaved && (
+
+                  <span className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
+                    SAVED
+                  </span>
+
+                )}
+
+                <span className="rounded-xl bg-blue-50 px-4 py-2 font-bold text-blue-700">
+
+                  {invoiceNumber ===
+                  "AUTO"
+                    ? "New Invoice"
+                    : invoiceNumber}
+
+                </span>
+
+              </div>
+
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+
+              {/* CUSTOMER NAME */}
+
+              <InputField
+                label="Customer Name"
+                value={
+                  customer.name
+                }
+                disabled={
+                  invoiceSaved
+                }
+                placeholder="Walk-in Customer"
+                onChange={(
+                  value
+                ) =>
+                  updateCustomer(
+                    "name",
+                    value
+                  )
+                }
+              />
+
+              {/* PHONE */}
+
+              <InputField
+                label="Customer Phone"
+                value={
+                  customer.phone
+                }
+                disabled={
+                  invoiceSaved
+                }
+                placeholder="03XX XXXXXXX"
+                onChange={(
+                  value
+                ) =>
+                  updateCustomer(
+                    "phone",
+                    value
+                  )
+                }
+              />
+
+              {/* ADDRESS */}
+
+              <InputField
+                label="Address"
+                value={
+                  customer.address
+                }
+                disabled={
+                  invoiceSaved
+                }
+                placeholder="Customer address"
+                onChange={(
+                  value
+                ) =>
+                  updateCustomer(
+                    "address",
+                    value
+                  )
+                }
+              />
+
+              {/* DATE */}
+
+              <div>
+
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Date
+                </label>
+
+                <div className="flex min-h-12 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700">
+
+                  {invoiceDate ||
+                    "-"}
+
+                </div>
+
+              </div>
+
+            </div>
+
+          </form>
+
+          {/* =================================
+              ITEMS
+          ================================= */}
+
+          {loadingProducts ? (
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+
+              <p className="font-semibold text-slate-700">
+                Loading products...
+              </p>
+
+              <p className="mt-1 text-xs text-slate-400">
+                Reading stock from PostgreSQL
+              </p>
+
+            </div>
+
+          ) : (
+
+            <InvoiceItems
+              items={
+                items
+              }
+              products={
+                products
+              }
+              setItems={
+                invoiceSaved
+                  ? () => {}
+                  : setItems
+              }
+              onAddItem={
+                addItem
+              }
+            />
+
+          )}
+
+          {/* =================================
+              SAVED NOTICE
+          ================================= */}
+
+          {invoiceSaved && (
+
+            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+
+              <strong>
+                Saved invoice:
+              </strong>{" "}
+
+              {invoiceNumber}
+
+              <br />
+
+              Stock has already been deducted.
+              Print/Reprint will not change stock.
+
+            </div>
+
+          )}
+
+          {/* =================================
+              NOTES
+          ================================= */}
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
+            <h2 className="font-bold text-slate-900">
+              Notes
+            </h2>
+
+            <textarea
+              value={
+                notes
+              }
+              disabled={
+                invoiceSaved
+              }
+              onChange={(
+                event
+              ) =>
+                setNotes(
+                  event.target.value
+                )
+              }
+              placeholder="Optional invoice notes..."
+              rows={
+                3
+              }
+              className="mt-4 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100"
+            />
+
+          </section>
+
+          {/* =================================
+              SUMMARY
+          ================================= */}
+
+          <InvoiceSummary
+            totals={
+              totals
+            }
+            paymentMethod={
+              paymentMethod
+            }
+            setPaymentMethod={
+              invoiceSaved
+                ? () => {}
+                : setPaymentMethod
+            }
+            amountPaid={
+              amountPaid
+            }
+            setAmountPaid={
+              invoiceSaved
+                ? () => {}
+                : setAmountPaid
+            }
+            taxRate={
+              taxRate
+            }
+            setTaxRate={
+              invoiceSaved
+                ? () => {}
+                : setTaxRate
+            }
+            status={
+              status
+            }
+          />
+
+          {/* =================================
+              ACTIONS
+          ================================= */}
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
+            {invoiceSaved && (
+
+              <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center text-sm font-bold text-emerald-700">
+
+                {invoiceNumber} saved successfully in PostgreSQL.
+                Stock has been updated.
+
+              </div>
+
+            )}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+
+              {/* SAVE */}
+
+              <button
+                type="button"
+                disabled={
+                  saving ||
+                  invoiceSaved
+                }
+                onClick={() =>
+                  void saveInvoice()
+                }
+                className="rounded-xl bg-slate-900 px-5 py-4 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+              >
+
+                {saving
+                  ? "Saving..."
+                  : invoiceSaved
+                    ? `${invoiceNumber} Saved`
+                    : "Save Invoice"}
+
+              </button>
+
+              {/* PRINT */}
 
               <button
                 type="button"
                 onClick={
                   printInvoice
                 }
-                className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white"
+                className="rounded-xl bg-blue-600 px-5 py-4 text-sm font-bold text-white transition hover:bg-blue-700"
               >
-                Print Invoice
+
+                {invoiceSaved
+                  ? `Print / Reprint ${invoiceNumber}`
+                  : "Print Invoice"}
+
               </button>
 
             </div>
 
-          </div>
-
-          {/* CUSTOMER INFO */}
-
-          <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-
-            <div className="mb-5 flex items-center justify-between">
-
-              <h2 className="text-lg font-bold">
-                Invoice Information
-              </h2>
-
-              <div className="rounded-xl bg-blue-50 px-4 py-2 font-bold text-blue-700">
-                {
-                  invoiceNumber
-                }
-              </div>
-
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-3">
-
-              <div>
-
-                <label className="mb-2 block text-sm font-semibold">
-                  Customer Name
-                </label>
-
-                <input
-                  value={
-                    customerName
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    setCustomerName(
-                      event.target
-                        .value
-                    )
-                  }
-                  placeholder="Customer name"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none"
-                />
-
-              </div>
-
-              <div>
-
-                <label className="mb-2 block text-sm font-semibold">
-                  Customer Phone
-                </label>
-
-                <input
-                  value={
-                    customerPhone
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    setCustomerPhone(
-                      event.target
-                        .value
-                    )
-                  }
-                  placeholder="03XX XXXXXXX"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none"
-                />
-
-              </div>
-
-              <div>
-
-                <label className="mb-2 block text-sm font-semibold">
-                  Date & Time
-                </label>
-
-                <div className="flex min-h-12 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm">
-                  {invoiceDate ||
-                    "-"}
-                </div>
-
-              </div>
-
-            </div>
-
-          </div>
-
-          {/* ITEMS */}
-
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-
-            <div className="flex flex-col gap-3 border-b p-5 sm:flex-row sm:items-center sm:justify-between">
-
-              <div>
-
-                <h2 className="text-lg font-bold">
-                  Invoice Items
-                </h2>
-
-                <p className="text-sm text-slate-500">
-                  Products page ke saved products yahan automatically load honge.
-                </p>
-
-              </div>
-
-              <button
-                type="button"
-                onClick={
-                  addItem
-                }
-                className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white"
-              >
-                + Add Item
-              </button>
-
-            </div>
-
-            {products.length ===
-              0 && (
-
-              <div className="border-b border-amber-200 bg-amber-50 px-5 py-4 text-sm font-semibold text-amber-700">
-                No products available. First add products from Products page.
-              </div>
-
-            )}
-
-            <div className="overflow-x-auto p-5">
-
-              <table className="w-full min-w-262.5">
-
-                <thead>
-
-                  <tr className="border-b text-left text-xs uppercase text-slate-500">
-
-                    <th className="px-3 py-3">
-                      #
-                    </th>
-
-                    <th className="px-3 py-3">
-                      Product
-                    </th>
-
-                    <th className="px-3 py-3">
-                      Stock
-                    </th>
-
-                    <th className="px-3 py-3">
-                      Qty / Weight
-                    </th>
-
-                    <th className="px-3 py-3">
-                      Rate
-                    </th>
-
-                    <th className="px-3 py-3 text-right">
-                      Amount
-                    </th>
-
-                    <th className="px-3 py-3">
-                      Action
-                    </th>
-
-                  </tr>
-
-                </thead>
-
-                <tbody>
-
-                  {items.map(
-                    (
-                      item,
-                      index
-                    ) => {
-
-                      const product =
-                        products.find(
-                          (
-                            current
-                          ) =>
-                            current.id ===
-                            item.productId
-                        );
-
-                      const stock =
-                        product
-                          ? getStock(
-                              product
-                            )
-                          : 0;
-
-                      const unit =
-                        product
-                          ? getUnit(
-                              product
-                            )
-                          : "";
-
-                      const amount =
-                        item.quantity *
-                        item.rate;
-
-                      return (
-                        <tr
-                          key={
-                            item.id
-                          }
-                          className="border-b border-slate-100"
-                        >
-
-                          <td className="px-3 py-4 font-semibold">
-                            {index +
-                              1}
-                          </td>
-
-                          {/* PRODUCT */}
-
-                          <td className="px-3 py-4">
-
-                            <select
-                              value={
-                                item.productId
-                              }
-                              onChange={(
-                                event
-                              ) =>
-                                selectProduct(
-                                  item.id,
-
-                                  Number(
-                                    event
-                                      .target
-                                      .value
-                                  )
-                                )
-                              }
-                              className="w-80 rounded-xl border border-slate-200 bg-white px-3 py-3"
-                            >
-
-                              <option
-                                value={
-                                  0
-                                }
-                              >
-                                Select Product
-                              </option>
-
-                              {products.map(
-                                (
-                                  option
-                                ) => {
-
-                                  const optionStock =
-                                    getStock(
-                                      option
-                                    );
-
-                                  return (
-                                    <option
-                                      key={
-                                        option.id
-                                      }
-                                      value={
-                                        option.id
-                                      }
-                                      disabled={
-                                        optionStock <=
-                                        0
-                                      }
-                                    >
-                                      {
-                                        option.name
-                                      }{" "}
-                                      -{" "}
-                                      {
-                                        optionStock
-                                      }{" "}
-                                      {getUnit(
-                                        option
-                                      )}
-                                    </option>
-                                  );
-                                }
-                              )}
-
-                            </select>
-
-                            {product && (
-
-                              <div className="mt-2 text-xs text-slate-500">
-
-                                {
-                                  product.category
-                                }
-
-                                {product.brand
-                                  ? ` • ${product.brand}`
-                                  : ""}
-
-                                {product.model
-                                  ? ` • ${product.model}`
-                                  : ""}
-
-                                {product.quality
-                                  ? ` • ${product.quality}`
-                                  : ""}
-
-                                {product.size
-                                  ? ` • Size ${product.size}`
-                                  : ""}
-
-                              </div>
-
-                            )}
-
-                          </td>
-
-                          {/* STOCK */}
-
-                          <td className="px-3 py-4">
-
-                            {product ? (
-                              <>
-
-                                <div
-                                  className={`font-bold ${
-                                    stock >
-                                    0
-                                      ? "text-emerald-600"
-                                      : "text-red-600"
-                                  }`}
-                                >
-                                  {
-                                    stock
-                                  }{" "}
-                                  {
-                                    unit
-                                  }
-                                </div>
-
-                                <div className="text-xs text-slate-400">
-                                  Available
-                                </div>
-
-                              </>
-                            ) : (
-                              "—"
-                            )}
-
-                          </td>
-
-                          {/* QUANTITY */}
-
-                          <td className="px-3 py-4">
-
-                            <input
-                              type="number"
-                              min="0"
-                              step={
-                                product?.type ===
-                                "weight"
-                                  ? "0.01"
-                                  : "1"
-                              }
-                              value={
-                                item.quantity
-                              }
-                              disabled={
-                                !product
-                              }
-                              onChange={(
-                                event
-                              ) =>
-                                updateQuantity(
-                                  item.id,
-                                  event
-                                    .target
-                                    .value
-                                )
-                              }
-                              className="w-28 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"
-                            />
-
-                            {product && (
-
-                              <div className="mt-1 text-xs text-slate-400">
-                                {
-                                  unit
-                                }
-                              </div>
-
-                            )}
-
-                          </td>
-
-                          {/* RATE */}
-
-                          <td className="px-3 py-4">
-
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={
-                                item.rate
-                              }
-                              disabled={
-                                !product
-                              }
-                              onChange={(
-                                event
-                              ) =>
-                                updateRate(
-                                  item.id,
-                                  event
-                                    .target
-                                    .value
-                                )
-                              }
-                              className="w-32 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"
-                            />
-
-                          </td>
-
-                          {/* AMOUNT */}
-
-                          <td className="px-3 py-4 text-right font-bold">
-                            {formatPrice(
-                              amount
-                            )}
-                          </td>
-
-                          {/* REMOVE */}
-
-                          <td className="px-3 py-4">
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                removeItem(
-                                  item.id
-                                )
-                              }
-                              disabled={
-                                items.length ===
-                                1
-                              }
-                              className="rounded-lg px-3 py-2 text-sm font-semibold text-red-600 disabled:text-slate-300"
-                            >
-                              Remove
-                            </button>
-
-                          </td>
-
-                        </tr>
-                      );
-                    }
-                  )}
-
-                </tbody>
-
-              </table>
-
-            </div>
-
-            {/* TOTALS */}
-
-            <div className="border-t p-5">
-
-              <div className="ml-auto max-w-md space-y-3">
-
-                <div className="flex justify-between">
-
-                  <span>
-                    Subtotal
-                  </span>
-
-                  <strong>
-                    {formatPrice(
-                      subtotal
-                    )}
-                  </strong>
-
-                </div>
-
-                <div className="flex justify-between">
-
-                  <span>
-                    Tax (5%)
-                  </span>
-
-                  <strong>
-                    {formatPrice(
-                      tax
-                    )}
-                  </strong>
-
-                </div>
-
-                <div className="flex justify-between border-t border-dashed pt-3">
-
-                  <span className="text-lg font-bold">
-                    Total
-                  </span>
-
-                  <strong className="text-xl text-blue-600">
-                    {formatPrice(
-                      total
-                    )}
-                  </strong>
-
-                </div>
-
-                {/* PAID */}
-
-                <div className="flex items-center justify-between gap-4 pt-3">
-
-                  <label className="font-semibold">
-                    Paid Amount
-                  </label>
-
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={
-                      paidAmount
-                    }
-                    onChange={(
-                      event
-                    ) =>
-                      setPaidAmount(
-                        event.target
-                          .value
-                      )
-                    }
-                    className="w-40 rounded-xl border border-slate-200 px-3 py-3 text-right"
-                  />
-
-                </div>
-
-                {/* REMAINING */}
-
-                {total >
-                  paid && (
-
-                  <div className="flex justify-between rounded-xl bg-red-50 px-4 py-3 font-bold text-red-600">
-
-                    <span>
-                      Remaining Balance
-                    </span>
-
-                    <span>
-                      {formatPrice(
-                        remaining
-                      )}
-                    </span>
-
-                  </div>
-
-                )}
-
-                {/* PAID */}
-
-                {total >
-                  0 &&
-                  paid >=
-                    total && (
-
-                  <div className="flex justify-between rounded-xl bg-green-50 px-4 py-3 font-bold text-green-700">
-
-                    <span>
-                      Payment Status
-                    </span>
-
-                    <span>
-                      PAID
-                    </span>
-
-                  </div>
-
-                )}
-
-                {/* CHANGE */}
-
-                {change >
-                  0 && (
-
-                  <div className="flex justify-between rounded-xl bg-blue-50 px-4 py-3 font-bold text-blue-700">
-
-                    <span>
-                      Change
-                    </span>
-
-                    <span>
-                      {formatPrice(
-                        change
-                      )}
-                    </span>
-
-                  </div>
-
-                )}
-
-                {/* SAVE */}
-
-                <button
-                  type="button"
-                  onClick={
-                    saveInvoice
-                  }
-                  className="mt-4 w-full rounded-xl bg-slate-900 px-5 py-4 font-bold text-white hover:bg-slate-800"
-                >
-                  Save Invoice & Update Stock
-                </button>
-
-              </div>
-
-            </div>
-
-          </div>
+          </section>
 
         </div>
 
       </div>
 
-      {/* =========================
-          PRINT INVOICE
-      ========================= */}
-
-      <div className="invoice-print hidden">
-
-        <div className="print-header">
-
-          <div>
-
-            <h1>
-              HAFIZ ELECTRONIC CHARPAI & COTTON WEST MERCHANT
-            </h1>
-
-            <p>
-              Retail Sales Invoice
-            </p>
-
-          </div>
-
-          <strong>
-            {
-              invoiceNumber
-            }
-          </strong>
-
-        </div>
-
-        <div className="print-info">
-
-          <div>
-
-            <b>
-              Customer:
-            </b>{" "}
-
-            {customerName ||
-              "Walk-in Customer"}
-
-          </div>
-
-          <div>
-
-            <b>
-              Phone:
-            </b>{" "}
-
-            {customerPhone ||
-              "-"}
-
-          </div>
-
-          <div>
-
-            <b>
-              Date:
-            </b>{" "}
-
-            {
-              invoiceDate
-            }
-
-          </div>
-
-        </div>
-
-        <table className="print-table">
-
-          <thead>
-
-            <tr>
-
-              <th>
-                #
-              </th>
-
-              <th>
-                Product
-              </th>
-
-              <th>
-                Details
-              </th>
-
-              <th>
-                Qty / Weight
-              </th>
-
-              <th>
-                Rate
-              </th>
-
-              <th>
-                Amount
-              </th>
-
-            </tr>
-
-          </thead>
-
-          <tbody>
-
-            {getValidItems().map(
-              (
-                item,
-                index
-              ) => {
-
-                const product =
-                  products.find(
-                    (
-                      current
-                    ) =>
-                      current.id ===
-                      item.productId
-                  );
-
-                const details =
-                  product
-                    ? [
-                        product.brand,
-
-                        product.model,
-
-                        product.quality,
-
-                        product.size
-                          ? `Size ${product.size}`
-                          : "",
-
-                        product.material,
-
-                        product.color,
-                      ]
-                        .filter(
-                          Boolean
-                        )
-                        .join(
-                          " / "
-                        ) ||
-                      "-"
-                    : "-";
-
-                return (
-                  <tr
-                    key={
-                      item.id
-                    }
-                  >
-
-                    <td>
-                      {index +
-                        1}
-                    </td>
-
-                    <td>
-                      {
-                        item.productName
-                      }
-                    </td>
-
-                    <td>
-                      {
-                        details
-                      }
-                    </td>
-
-                    <td>
-
-                      {
-                        item.quantity
-                      }{" "}
-
-                      {product
-                        ? getUnit(
-                            product
-                          )
-                        : ""}
-
-                    </td>
-
-                    <td>
-                      {formatPrice(
-                        item.rate
-                      )}
-                    </td>
-
-                    <td>
-                      {formatPrice(
-                        item.quantity *
-                          item.rate
-                      )}
-                    </td>
-
-                  </tr>
-                );
-              }
-            )}
-
-          </tbody>
-
-        </table>
-
-        <div className="print-summary">
-
-          <div>
-
-            <span>
-              Subtotal
-            </span>
-
-            <strong>
-              {formatPrice(
-                subtotal
-              )}
-            </strong>
-
-          </div>
-
-          <div>
-
-            <span>
-              Tax (5%)
-            </span>
-
-            <strong>
-              {formatPrice(
-                tax
-              )}
-            </strong>
-
-          </div>
-
-          <div className="print-total">
-
-            <span>
-              Total
-            </span>
-
-            <strong>
-              {formatPrice(
-                total
-              )}
-            </strong>
-
-          </div>
-
-          <div>
-
-            <span>
-              Paid
-            </span>
-
-            <strong>
-              {formatPrice(
-                paid
-              )}
-            </strong>
-
-          </div>
-
-          {remaining >
-            0 && (
-
-            <div>
-
-              <span>
-                Remaining
-              </span>
-
-              <strong>
-                {formatPrice(
-                  remaining
-                )}
-              </strong>
-
-            </div>
-
-          )}
-
-          {change >
-            0 && (
-
-            <div>
-
-              <span>
-                Change
-              </span>
-
-              <strong>
-                {formatPrice(
-                  change
-                )}
-              </strong>
-
-            </div>
-
-          )}
-
-        </div>
-
-        <div className="print-footer">
-          Thank you for shopping with us!
-        </div>
-
-      </div>
-
-      {/* =========================
+      {/* =====================================
+          PRINT COMPONENT
+      ===================================== */}
+
+      <InvoicePrint
+        invoiceNumber={
+          invoiceNumber ===
+          "AUTO"
+            ? "Unsaved Invoice"
+            : invoiceNumber
+        }
+        date={
+          invoiceDate
+        }
+        customer={
+          customer
+        }
+        items={
+          items
+        }
+        totals={
+          totals
+        }
+        paymentMethod={
+          paymentMethod
+        }
+        status={
+          status
+        }
+        taxRate={
+          taxRate
+        }
+        notes={
+          notes
+        }
+      />
+
+      {/* =====================================
           PRINT CSS
-      ========================= */}
+      ===================================== */}
 
       <style jsx global>{`
         @media print {
@@ -2220,98 +1538,85 @@ export default function InvoicePage() {
             margin: 10mm;
           }
 
+          html,
           body {
             background: white !important;
           }
 
-          .invoice-print {
+          body * {
+            visibility: hidden;
+          }
+
+          #invoice-print,
+          #invoice-print * {
+            visibility: visible;
+          }
+
+          #invoice-print {
             display: block !important;
+            position: absolute;
+            left: 0;
+            top: 0;
             width: 100%;
-            color: #111827;
-            font-family: Arial, sans-serif;
-          }
-
-          .print-header {
-            display: flex;
-            justify-content: space-between;
-            gap: 20px;
-            border-bottom: 2px solid #111827;
-            padding-bottom: 12px;
-            margin-bottom: 15px;
-          }
-
-          .print-header h1 {
-            margin: 0;
-            font-size: 22px;
-          }
-
-          .print-header p {
-            margin: 4px 0 0;
-            font-size: 13px;
-          }
-
-          .print-header strong {
-            border: 1px solid #111827;
-            padding: 8px 14px;
-            height: fit-content;
-          }
-
-          .print-info {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 15px;
-            font-size: 13px;
-          }
-
-          .print-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-          }
-
-          .print-table th,
-          .print-table td {
-            border: 1px solid #374151;
-            padding: 8px;
-            text-align: left;
-          }
-
-          .print-table th:last-child,
-          .print-table td:last-child {
-            text-align: right;
-          }
-
-          .print-summary {
-            width: 350px;
-            margin-left: auto;
-            margin-top: 18px;
-            font-size: 13px;
-          }
-
-          .print-summary > div {
-            display: flex;
-            justify-content: space-between;
-            padding: 5px 0;
-          }
-
-          .print-total {
-            border-top: 2px solid #111827;
-            border-bottom: 1px solid #111827;
-            padding: 8px 0 !important;
-            font-size: 16px;
-          }
-
-          .print-footer {
-            margin-top: 25px;
-            border-top: 1px solid #9ca3af;
-            padding-top: 10px;
-            text-align: center;
-            font-size: 13px;
           }
         }
       `}</style>
 
     </>
+  );
+}
+
+/* =========================================
+   INPUT FIELD
+========================================= */
+
+function InputField({
+  label,
+  value,
+  onChange,
+  placeholder = "",
+  disabled = false,
+}: {
+  label: string;
+
+  value: string;
+
+  onChange: (
+    value: string
+  ) => void;
+
+  placeholder?: string;
+
+  disabled?: boolean;
+}) {
+  return (
+    <div>
+
+      <label className="mb-2 block text-sm font-semibold text-slate-700">
+        {label}
+      </label>
+
+      <input
+        type="text"
+        value={
+          value
+        }
+        disabled={
+          disabled
+        }
+        onChange={(
+          event
+        ) =>
+          onChange(
+            event.target.value
+          )
+        }
+        placeholder={
+          placeholder
+        }
+        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100"
+      />
+
+    </div>
   );
 }

@@ -1,0 +1,178 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+/* =====================================================
+   PRODUCT
+===================================================== */
+
+model Product {
+  id             Int       @id @default(autoincrement())
+
+  name           String
+  category       String
+
+  type           String
+  unit           String
+
+  purchasePrice  Float
+  sellingPrice   Float
+
+  quantity       Float     @default(0)
+
+  weightEntries  String    @default("")
+
+  size           String    @default("")
+  material       String    @default("")
+  brand          String    @default("")
+  model          String    @default("")
+  quality        String    @default("")
+  color          String    @default("")
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  invoiceItems   InvoiceItem[]
+}
+
+/* =====================================================
+   CUSTOMER
+===================================================== */
+
+model Customer {
+  id         Int       @id @default(autoincrement())
+
+  name       String
+  phone      String    @default("")
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  invoices   Invoice[]
+}
+
+/* =====================================================
+   INVOICE
+===================================================== */
+
+model Invoice {
+  id                Int           @id @default(autoincrement())
+
+  invoiceNumber     String        @unique
+
+  invoiceDate       DateTime      @default(now())
+
+  customerId        Int?
+
+  customer          Customer?     @relation(
+    fields: [customerId],
+    references: [id]
+  )
+
+  subtotal          Float
+
+  tax               Float
+
+  total             Float
+
+  paidAmount        Float
+
+  remainingBalance  Float
+
+  changeAmount      Float
+
+  status            String        @default("UNPAID")
+
+  finalized         Boolean       @default(false)
+
+  createdAt         DateTime      @default(now())
+
+  updatedAt         DateTime      @updatedAt
+
+  items             InvoiceItem[]
+
+  payments          Payment[]
+}
+
+/* =====================================================
+   INVOICE ITEM
+
+   purchasePrice / costAmount / profitAmount
+   are ADMIN ONLY.
+
+   Customer invoice should never display them.
+===================================================== */
+
+model InvoiceItem {
+  id             Int       @id @default(autoincrement())
+
+  invoiceId      Int
+
+  invoice        Invoice   @relation(
+    fields: [invoiceId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  productId      Int
+
+  product        Product   @relation(
+    fields: [productId],
+    references: [id]
+  )
+
+  productName    String
+
+  productType    String
+
+  unit           String
+
+  quantity       Float
+
+  /* Customer selling rate */
+
+  rate           Float
+
+  /* Final item sale amount */
+
+  amount         Float
+
+  /* =========================================
+     PRIVATE ADMIN PROFIT SNAPSHOT
+  ========================================= */
+
+  purchasePrice  Float     @default(0)
+
+  costAmount     Float     @default(0)
+
+  profitAmount   Float     @default(0)
+
+  createdAt      DateTime  @default(now())
+}
+
+/* =====================================================
+   PAYMENT
+===================================================== */
+
+model Payment {
+  id            Int       @id @default(autoincrement())
+
+  invoiceId     Int
+
+  invoice       Invoice   @relation(
+    fields: [invoiceId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  method        String
+
+  amount        Float
+
+  createdAt     DateTime  @default(now())
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import {
+import type {
   Sale,
   SaleStatus,
 } from "./page";
@@ -9,11 +9,13 @@ type Props = {
   sales: Sale[];
 
   search: string;
+
   setSearch: (
     value: string
   ) => void;
 
   statusFilter: string;
+
   setStatusFilter: (
     value: string
   ) => void;
@@ -42,32 +44,42 @@ export default function SalesTable({
   onDelete,
 }: Props) {
   const filteredSales =
-    sales.filter((sale) => {
+    sales.filter(
+      (sale) => {
+        const searchValue =
+          search
+            .trim()
+            .toLowerCase();
 
-      const searchValue =
-        search.toLowerCase();
+        const matchesSearch =
+          sale.invoiceNo
+            .toLowerCase()
+            .includes(
+              searchValue
+            ) ||
+          sale.customerName
+            .toLowerCase()
+            .includes(
+              searchValue
+            ) ||
+          sale.customerPhone
+            .toLowerCase()
+            .includes(
+              searchValue
+            );
 
-      const matchesSearch =
-        sale.invoiceNo
-          .toLowerCase()
-          .includes(searchValue) ||
-        sale.customerName
-          .toLowerCase()
-          .includes(searchValue) ||
-        sale.customerPhone
-          .toLowerCase()
-          .includes(searchValue);
+        const matchesStatus =
+          statusFilter ===
+            "All" ||
+          sale.status ===
+            statusFilter;
 
-      const matchesStatus =
-        statusFilter === "All" ||
-        sale.status ===
-          statusFilter;
-
-      return (
-        matchesSearch &&
-        matchesStatus
-      );
-    });
+        return (
+          matchesSearch &&
+          matchesStatus
+        );
+      }
+    );
 
   return (
     <div className="space-y-4">
@@ -108,7 +120,6 @@ export default function SalesTable({
             }
             className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none"
           >
-
             <option value="All">
               All Status
             </option>
@@ -124,7 +135,6 @@ export default function SalesTable({
             <option value="Unpaid">
               Unpaid
             </option>
-
           </select>
 
         </div>
@@ -137,56 +147,23 @@ export default function SalesTable({
 
         <div className="overflow-x-auto">
 
-          <table className="w-full min-w-300">
+          <table className="w-full min-w-337.5">
 
             <thead className="border-b bg-slate-50">
 
               <tr>
-
-                <Head>
-                  Invoice
-                </Head>
-
-                <Head>
-                  Date
-                </Head>
-
-                <Head>
-                  Customer
-                </Head>
-
-                <Head>
-                  Product
-                </Head>
-
-                <Head>
-                  Qty
-                </Head>
-
-                <Head>
-                  Total
-                </Head>
-
-                <Head>
-                  Paid
-                </Head>
-
-                <Head>
-                  Receivable
-                </Head>
-
-                <Head>
-                  Payment
-                </Head>
-
-                <Head>
-                  Status
-                </Head>
-
-                <Head>
-                  Actions
-                </Head>
-
+                <Head>Invoice</Head>
+                <Head>Date</Head>
+                <Head>Customer</Head>
+                <Head>Product</Head>
+                <Head>Qty</Head>
+                <Head>Total</Head>
+                <Head>Paid</Head>
+                <Head>Receivable</Head>
+                <Head>Profit</Head>
+                <Head>Margin</Head>
+                <Head>Status</Head>
+                <Head>Actions</Head>
               </tr>
 
             </thead>
@@ -199,7 +176,7 @@ export default function SalesTable({
                 <tr>
 
                   <td
-                    colSpan={11}
+                    colSpan={12}
                     className="p-10 text-center text-sm text-slate-500"
                   >
                     No sales found.
@@ -211,8 +188,7 @@ export default function SalesTable({
 
                 filteredSales.map(
                   (sale) => {
-
-                    const item =
+                    const firstItem =
                       sale.items[0];
 
                     return (
@@ -223,59 +199,80 @@ export default function SalesTable({
                         className="hover:bg-slate-50"
                       >
 
+                        {/* INVOICE */}
+
                         <td className="px-5 py-4">
 
                           <span className="rounded-lg bg-slate-100 px-3 py-1 text-xs font-bold">
-                            {
-                              sale.invoiceNo
-                            }
+                            {sale.invoiceNo}
                           </span>
 
                         </td>
+
+                        {/* DATE */}
 
                         <td className="px-5 py-4 text-sm text-slate-500">
                           {sale.date}
                         </td>
 
+                        {/* CUSTOMER */}
+
                         <td className="px-5 py-4">
 
                           <p className="font-semibold">
-                            {
-                              sale.customerName
-                            }
+                            {sale.customerName}
                           </p>
 
                           {sale.customerPhone && (
+
                             <p className="text-xs text-slate-500">
-                              {
-                                sale.customerPhone
-                              }
+                              {sale.customerPhone}
                             </p>
+
                           )}
 
                         </td>
 
+                        {/* PRODUCT */}
+
                         <td className="px-5 py-4 text-sm">
-                          {
-                            item.productName
-                          }
+
+                          {firstItem
+                            ? firstItem.productName
+                            : "-"}
+
+                          {sale.items.length >
+                            1 && (
+
+                            <div className="mt-1 text-xs text-slate-400">
+                              +{sale.items.length - 1} more
+                            </div>
+
+                          )}
+
                         </td>
+
+                        {/* QTY */}
 
                         <td className="px-5 py-4">
 
-                          <span className="font-semibold">
-                            {
-                              item.quantity
-                            }
-                          </span>
+                          {firstItem ? (
+                            <>
+                              <span className="font-semibold">
+                                {firstItem.quantity}
+                              </span>
 
-                          <span className="ml-1 text-xs text-slate-500">
-                            {
-                              item.unit
-                            }
-                          </span>
+                              <span className="ml-1 text-xs text-slate-500">
+                                {firstItem.unit}
+                              </span>
+                            </>
+                          ) : (
+                            "-"
+                          )}
 
                         </td>
+
+                        {/* TOTAL */}
 
                         <td className="px-5 py-4 font-semibold">
                           {currency(
@@ -283,11 +280,15 @@ export default function SalesTable({
                           )}
                         </td>
 
+                        {/* PAID */}
+
                         <td className="px-5 py-4 font-semibold text-green-600">
                           {currency(
                             sale.paidAmount
                           )}
                         </td>
+
+                        {/* RECEIVABLE */}
 
                         <td className="px-5 py-4 font-semibold text-red-600">
                           {currency(
@@ -295,11 +296,46 @@ export default function SalesTable({
                           )}
                         </td>
 
-                        <td className="px-5 py-4 text-sm">
-                          {
-                            sale.paymentMethod
-                          }
+                        {/* PROFIT */}
+
+                        <td className="px-5 py-4">
+
+                          <span
+                            className={`font-bold ${
+                              sale.profitAmount >=
+                              0
+                                ? "text-emerald-600"
+                                : "text-red-600"
+                            }`}
+                          >
+                            {currency(
+                              sale.profitAmount
+                            )}
+                          </span>
+
                         </td>
+
+                        {/* MARGIN */}
+
+                        <td className="px-5 py-4">
+
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-bold ${
+                              sale.profitMargin >=
+                              0
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "bg-red-50 text-red-700"
+                            }`}
+                          >
+                            {sale.profitMargin.toFixed(
+                              1
+                            )}
+                            %
+                          </span>
+
+                        </td>
+
+                        {/* STATUS */}
 
                         <td className="px-5 py-4">
 
@@ -311,11 +347,14 @@ export default function SalesTable({
 
                         </td>
 
+                        {/* ACTIONS */}
+
                         <td className="px-5 py-4">
 
                           <div className="flex gap-2">
 
                             <button
+                              type="button"
                               onClick={() =>
                                 onView(
                                   sale
@@ -327,6 +366,7 @@ export default function SalesTable({
                             </button>
 
                             <button
+                              type="button"
                               onClick={() =>
                                 onEdit(
                                   sale
@@ -338,6 +378,7 @@ export default function SalesTable({
                             </button>
 
                             <button
+                              type="button"
                               onClick={() =>
                                 onDelete(
                                   sale.id
@@ -374,13 +415,21 @@ export default function SalesTable({
 function currency(
   value: number
 ) {
-  return `Rs. ${value.toLocaleString()}`;
+  return `Rs. ${Number(
+    value || 0
+  ).toLocaleString(
+    "en-PK",
+    {
+      maximumFractionDigits: 2,
+    }
+  )}`;
 }
 
 function Head({
   children,
 }: {
-  children: React.ReactNode;
+  children:
+    React.ReactNode;
 }) {
   return (
     <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -392,12 +441,16 @@ function Head({
 function StatusBadge({
   status,
 }: {
-  status: SaleStatus;
+  status:
+    SaleStatus;
 }) {
   const styles = {
-    Paid: "bg-green-50 text-green-700",
+    Paid:
+      "bg-green-50 text-green-700",
+
     Partial:
       "bg-orange-50 text-orange-700",
+
     Unpaid:
       "bg-red-50 text-red-700",
   };

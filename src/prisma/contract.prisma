@@ -1,0 +1,142 @@
+// use prisma-next
+
+model Product {
+  id             Int                 @id @default(autoincrement())
+
+  name           String
+  category       String
+
+  type           String
+  unit           String
+
+  purchasePrice  Float
+  sellingPrice   Float
+
+  quantity       Float               @default(0)
+  weightEntries  String              @default("")
+
+  size           String              @default("")
+  material       String              @default("")
+  brand          String              @default("")
+  model          String              @default("")
+  quality        String              @default("")
+  color          String              @default("")
+
+  createdAt      TimestamptzString   @default(now())
+  updatedAt      temporal.updatedAtString()
+
+  invoiceItems   InvoiceItem[]
+}
+
+
+model Customer {
+  id             Int                 @id @default(autoincrement())
+
+  name           String
+  phone          String              @default("")
+
+  createdAt      TimestamptzString   @default(now())
+  updatedAt      temporal.updatedAtString()
+
+  invoices       Invoice[]
+}
+
+
+model Invoice {
+  id                Int                 @id @default(autoincrement())
+
+  invoiceNumber     String              @unique
+
+  customerId        Int?
+
+  customer          Customer?           @relation(
+    fields: [customerId],
+    references: [id]
+  )
+
+  customerName      String              @default("")
+  customerPhone     String              @default("")
+
+  subtotal          Float               @default(0)
+  tax               Float               @default(0)
+  total             Float               @default(0)
+
+  paidAmount        Float               @default(0)
+  remainingBalance  Float               @default(0)
+  changeAmount      Float               @default(0)
+
+  status            String              @default("UNPAID")
+
+  finalized         Boolean             @default(false)
+
+  createdAt         TimestamptzString   @default(now())
+  updatedAt         temporal.updatedAtString()
+
+  items             InvoiceItem[]
+  payments          Payment[]
+}
+
+
+model InvoiceItem {
+  id             Int                 @id @default(autoincrement())
+
+  invoiceId      Int
+
+  invoice        Invoice             @relation(
+    fields: [invoiceId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  productId      Int
+
+  product        Product             @relation(
+    fields: [productId],
+    references: [id]
+  )
+
+  productName    String
+  productType    String
+  unit           String
+
+  quantity       Float
+
+  weightEntries  String              @default("")
+
+  // Customer selling rate
+  rate           Float
+
+  // Final sale amount
+  amount         Float
+
+  // ========================================
+  // ADMIN ONLY - PROFIT SNAPSHOT
+  // ========================================
+
+  purchasePrice  Float               @default(0)
+
+  costAmount     Float               @default(0)
+
+  profitAmount   Float               @default(0)
+
+  createdAt      TimestamptzString   @default(now())
+}
+
+
+model Payment {
+  id             Int                 @id @default(autoincrement())
+
+  invoiceId      Int
+
+  invoice        Invoice             @relation(
+    fields: [invoiceId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  method         String              @default("Cash")
+
+  amount         Float
+
+  createdAt      TimestamptzString   @default(now())
+}

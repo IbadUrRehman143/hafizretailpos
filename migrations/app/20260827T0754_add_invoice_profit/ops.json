@@ -1,0 +1,128 @@
+[
+  {
+    "id": "column.public.invoiceItem.costAmount",
+    "label": "Add column \"costAmount\" to \"invoiceItem\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "costAmount",
+        "table": "invoiceItem"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"costAmount\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "invoiceItem",
+          "costAmount"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"costAmount\"",
+        "sql": "ALTER TABLE \"public\".\"invoiceItem\" ADD COLUMN \"costAmount\" float8 DEFAULT 0 NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"costAmount\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "invoiceItem",
+          "costAmount"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.invoiceItem.profitAmount",
+    "label": "Add column \"profitAmount\" to \"invoiceItem\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "profitAmount",
+        "table": "invoiceItem"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"profitAmount\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "invoiceItem",
+          "profitAmount"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"profitAmount\"",
+        "sql": "ALTER TABLE \"public\".\"invoiceItem\" ADD COLUMN \"profitAmount\" float8 DEFAULT 0 NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"profitAmount\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "invoiceItem",
+          "profitAmount"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.invoiceItem.purchasePrice",
+    "label": "Add column \"purchasePrice\" to \"invoiceItem\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "purchasePrice",
+        "table": "invoiceItem"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"purchasePrice\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "invoiceItem",
+          "purchasePrice"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"purchasePrice\"",
+        "sql": "ALTER TABLE \"public\".\"invoiceItem\" ADD COLUMN \"purchasePrice\" float8 DEFAULT 0 NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"purchasePrice\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "invoiceItem",
+          "purchasePrice"
+        ]
+      }
+    ]
+  }
+]
