@@ -1,347 +1,1415 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+type ProductType =
+  | "weight"
+  | "quantity"
+  | "size";
+
+type Bundle = {
+  id: number;
+  name: string;
+  weight: string;
+};
+
+type Product = {
+  id: number;
+  name: string;
+  category: string;
+  type: ProductType;
+  unit: string;
+  purchasePrice: number;
+  sellingPrice: number;
+  quantity: number;
+  size: string;
+  material: string;
+  brand: string;
+  model: string;
+  quality: string;
+  color: string;
+  bundles: Bundle[];
+};
 
 type InvoiceItem = {
   id: number;
-  product: string;
+  productId: number;
+  productName: string;
   quantity: number;
   rate: number;
 };
 
-const availableProducts = [
-  "Washing Machine",
-  "Air Cooler",
-  "Cotton Mattress",
-  "Charpai",
-  "Bamboo",
-  "Bed Sheet",
-  "Pillow",
-  "Electric Fan",
-];
+const PRODUCT_KEY =
+  "hafiz_products";
+
+const INVOICE_KEY =
+  "hafiz_invoice_number";
+
+const TAX_RATE =
+  0.05;
+
+const firstItem: InvoiceItem =
+  {
+    id: 1,
+    productId: 0,
+    productName: "",
+    quantity: 1,
+    rate: 0,
+  };
+
+/* ============================
+   PRODUCT NORMALIZER
+============================ */
+
+function normalizeProduct(
+  value: unknown
+): Product | null {
+  if (
+    typeof value !==
+      "object" ||
+    value === null
+  ) {
+    return null;
+  }
+
+  const raw =
+    value as Record<
+      string,
+      unknown
+    >;
+
+  const rawType =
+    raw.type;
+
+  const type: ProductType =
+    rawType ===
+      "weight" ||
+    rawType ===
+      "size" ||
+    rawType ===
+      "quantity"
+      ? rawType
+      : "quantity";
+
+  const bundles: Bundle[] =
+    Array.isArray(
+      raw.bundles
+    )
+      ? raw.bundles.map(
+          (
+            bundleValue,
+            index
+          ) => {
+            const bundle =
+              typeof bundleValue ===
+                "object" &&
+              bundleValue !==
+                null
+                ? (bundleValue as Record<
+                    string,
+                    unknown
+                  >)
+                : {};
+
+            return {
+              id:
+                Number(
+                  bundle.id
+                ) ||
+                index +
+                  1,
+
+              name:
+                String(
+                  bundle.name ||
+                    `B-${String(
+                      index +
+                        1
+                    ).padStart(
+                      3,
+                      "0"
+                    )}`
+                ),
+
+              weight:
+                String(
+                  Number(
+                    bundle.weight
+                  ) || 0
+                ),
+            };
+          }
+        )
+      : [];
+
+  return {
+    id:
+      Number(raw.id) ||
+      0,
+
+    name:
+      String(
+        raw.name || ""
+      ),
+
+    category:
+      String(
+        raw.category ||
+          "Other"
+      ),
+
+    type,
+
+    unit:
+      type ===
+      "weight"
+        ? "KG"
+        : String(
+            raw.unit ||
+              "PCS"
+          ),
+
+    purchasePrice:
+      Number(
+        raw.purchasePrice
+      ) || 0,
+
+    sellingPrice:
+      Number(
+        raw.sellingPrice
+      ) || 0,
+
+    quantity:
+      Number(
+        raw.quantity
+      ) || 0,
+
+    size:
+      String(
+        raw.size || ""
+      ),
+
+    material:
+      String(
+        raw.material ||
+          ""
+      ),
+
+    brand:
+      String(
+        raw.brand || ""
+      ),
+
+    model:
+      String(
+        raw.model || ""
+      ),
+
+    quality:
+      String(
+        raw.quality ||
+          ""
+      ),
+
+    color:
+      String(
+        raw.color || ""
+      ),
+
+    bundles,
+  };
+}
 
 export default function InvoicePage() {
-  const [invoiceNumber, setInvoiceNumber] = useState("INV-1");
+  const [
+    products,
+    setProducts,
+  ] =
+    useState<Product[]>(
+      []
+    );
 
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
+  const [
+    invoiceNumber,
+    setInvoiceNumber,
+  ] =
+    useState("INV-1");
 
-  const [invoiceDate, setInvoiceDate] = useState("");
+  const [
+    invoiceDate,
+    setInvoiceDate,
+  ] =
+    useState("");
 
-  const [items, setItems] = useState<InvoiceItem[]>([
-    {
-      id: 1,
-      product: "",
-      quantity: 1,
-      rate: 0,
-    },
-  ]);
+  const [
+    customerName,
+    setCustomerName,
+  ] =
+    useState("");
 
-  const [paidAmount, setPaidAmount] = useState("");
+  const [
+    customerPhone,
+    setCustomerPhone,
+  ] =
+    useState("");
 
-  /*
-   * Generate invoice number only on client.
-   * This avoids hydration mismatch.
-   */
+  const [
+    paidAmount,
+    setPaidAmount,
+  ] =
+    useState("");
+
+  const [
+    items,
+    setItems,
+  ] =
+    useState<
+      InvoiceItem[]
+    >([
+      firstItem,
+    ]);
+
+  const nextItemId =
+    useRef(2);
+
+  /* ============================
+     INITIAL LOAD
+  ============================ */
+
   useEffect(() => {
-    const savedNumber =
-      localStorage.getItem("hafiz_invoice_number");
+    loadProducts();
+    loadInvoiceNumber();
+    updateDate();
+  }, []);
 
-    if (!savedNumber) {
-      localStorage.setItem(
-        "hafiz_invoice_number",
-        "1"
+  /* ============================
+     RELOAD WHEN TAB ACTIVE
+  ============================ */
+
+  useEffect(() => {
+    function handleFocus() {
+      loadProducts();
+    }
+
+    window.addEventListener(
+      "focus",
+      handleFocus
+    );
+
+    return () => {
+      window.removeEventListener(
+        "focus",
+        handleFocus
       );
+    };
+  }, []);
 
-      setInvoiceNumber("INV-1");
-    } else {
+  /* ============================
+     LOAD PRODUCTS
+  ============================ */
+
+  function loadProducts() {
+    try {
+      const saved =
+        localStorage.getItem(
+          PRODUCT_KEY
+        );
+
+      if (!saved) {
+        setProducts([]);
+        return;
+      }
+
+      const parsed:
+        unknown =
+        JSON.parse(saved);
+
+      if (
+        !Array.isArray(
+          parsed
+        )
+      ) {
+        setProducts([]);
+        return;
+      }
+
+      const cleanProducts =
+        parsed
+          .map(
+            normalizeProduct
+          )
+          .filter(
+            (
+              product
+            ): product is Product =>
+              product !==
+                null &&
+              product.id >
+                0
+          );
+
+      setProducts(
+        cleanProducts
+      );
+    } catch {
+      setProducts([]);
+    }
+  }
+
+  /* ============================
+     INVOICE NUMBER
+  ============================ */
+
+  function loadInvoiceNumber() {
+    try {
+      const saved =
+        localStorage.getItem(
+          INVOICE_KEY
+        );
+
+      let number =
+        Number(
+          saved || "1"
+        );
+
+      if (
+        !Number.isFinite(
+          number
+        ) ||
+        number < 1
+      ) {
+        number = 1;
+
+        localStorage.setItem(
+          INVOICE_KEY,
+          "1"
+        );
+      }
+
       setInvoiceNumber(
-        `INV-${Number(savedNumber)}`
+        `INV-${Math.floor(
+          number
+        )}`
+      );
+    } catch {
+      setInvoiceNumber(
+        "INV-1"
+      );
+    }
+  }
+
+  /* ============================
+     DATE
+  ============================ */
+
+  function updateDate() {
+    const now =
+      new Date();
+
+    setInvoiceDate(
+      now.toLocaleString(
+        "en-PK",
+        {
+          dateStyle:
+            "medium",
+
+          timeStyle:
+            "short",
+        }
+      )
+    );
+  }
+
+  /* ============================
+     STOCK
+  ============================ */
+
+  function getStock(
+    product: Product
+  ) {
+    if (
+      product.type ===
+      "weight"
+    ) {
+      return product.bundles.reduce(
+        (
+          total,
+          bundle
+        ) =>
+          total +
+          (Number(
+            bundle.weight
+          ) || 0),
+        0
       );
     }
 
-    const now = new Date();
-
-    setInvoiceDate(
-      now.toLocaleString("en-PK", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      })
+    return Math.max(
+      0,
+      Number(
+        product.quantity
+      ) || 0
     );
-  }, []);
+  }
 
-  const formatPrice = (value: number) => {
-    return `Rs. ${Number(value || 0).toLocaleString(
-      "en-PK",
-      {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }
-    )}`;
-  };
+  function getUnit(
+    product: Product
+  ) {
+    if (
+      product.type ===
+      "weight"
+    ) {
+      return "KG";
+    }
 
-  /*
-   * ADD ITEM
-   */
-  const addItem = () => {
-    setItems((current) => [
-      ...current,
-      {
-        id: Date.now(),
-        product: "",
-        quantity: 1,
-        rate: 0,
-      },
-    ]);
-  };
+    return (
+      product.unit ||
+      "PCS"
+    );
+  }
 
-  /*
-   * UPDATE ITEM
-   */
-  const updateItem = (
-    id: number,
-    field: keyof InvoiceItem,
-    value: string | number
-  ) => {
-    setItems((current) =>
-      current.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              [field]:
-                field === "quantity" ||
-                field === "rate"
-                  ? Number(value) || 0
-                  : value,
-            }
-          : item
+  /* ============================
+     PRICE
+  ============================ */
+
+  function formatPrice(
+    value: number
+  ) {
+    return (
+      "Rs. " +
+      Number(
+        value || 0
+      ).toLocaleString(
+        "en-PK",
+        {
+          minimumFractionDigits:
+            2,
+
+          maximumFractionDigits:
+            2,
+        }
       )
     );
-  };
+  }
 
-  /*
-   * REMOVE ITEM
-   */
-  const removeItem = (id: number) => {
-    setItems((current) =>
-      current.filter((item) => item.id !== id)
+  /* ============================
+     ADD ITEM
+  ============================ */
+
+  function addItem() {
+    const id =
+      nextItemId.current;
+
+    nextItemId.current +=
+      1;
+
+    setItems(
+      (current) => [
+        ...current,
+
+        {
+          id,
+          productId: 0,
+          productName: "",
+          quantity: 1,
+          rate: 0,
+        },
+      ]
     );
-  };
+  }
 
-  /*
-   * CALCULATIONS
-   */
-  const subtotal = items.reduce(
-    (sum, item) =>
-      sum +
-      Number(item.quantity || 0) *
-        Number(item.rate || 0),
-    0
-  );
+  /* ============================
+     REMOVE ITEM
+  ============================ */
 
-  const taxRate = 0.05;
+  function removeItem(
+    id: number
+  ) {
+    setItems(
+      (current) => {
+        if (
+          current.length ===
+          1
+        ) {
+          return current;
+        }
 
-  const tax = subtotal * taxRate;
+        return current.filter(
+          (item) =>
+            item.id !== id
+        );
+      }
+    );
+  }
 
-  const total = subtotal + tax;
+  /* ============================
+     SELECT PRODUCT
+  ============================ */
 
-  const paid = Number(paidAmount) || 0;
+  function selectProduct(
+    itemId: number,
+    productId: number
+  ) {
+    const product =
+      products.find(
+        (current) =>
+          current.id ===
+          productId
+      );
 
-  const remainingBalance =
-    Math.max(0, total - paid);
+    if (!product) {
+      setItems(
+        (current) =>
+          current.map(
+            (item) =>
+              item.id ===
+              itemId
+                ? {
+                    ...item,
+
+                    productId:
+                      0,
+
+                    productName:
+                      "",
+
+                    quantity:
+                      1,
+
+                    rate: 0,
+                  }
+                : item
+          )
+      );
+
+      return;
+    }
+
+    const stock =
+      getStock(
+        product
+      );
+
+    if (stock <= 0) {
+      alert(
+        `${product.name} is out of stock.`
+      );
+
+      return;
+    }
+
+    setItems(
+      (current) =>
+        current.map(
+          (item) =>
+            item.id ===
+            itemId
+              ? {
+                  ...item,
+
+                  productId:
+                    product.id,
+
+                  productName:
+                    product.name,
+
+                  quantity:
+                    product.type ===
+                    "weight"
+                      ? 1
+                      : 1,
+
+                  rate:
+                    product.sellingPrice,
+                }
+              : item
+        )
+    );
+  }
+
+  /* ============================
+     QUANTITY
+  ============================ */
+
+  function updateQuantity(
+    itemId: number,
+    value: string
+  ) {
+    const item =
+      items.find(
+        (current) =>
+          current.id ===
+          itemId
+      );
+
+    if (
+      !item ||
+      item.productId ===
+        0
+    ) {
+      return;
+    }
+
+    const product =
+      products.find(
+        (current) =>
+          current.id ===
+          item.productId
+      );
+
+    if (!product) {
+      return;
+    }
+
+    let quantity =
+      Number(value);
+
+    if (
+      !Number.isFinite(
+        quantity
+      )
+    ) {
+      quantity = 0;
+    }
+
+    quantity =
+      Math.max(
+        0,
+        quantity
+      );
+
+    if (
+      product.type !==
+      "weight"
+    ) {
+      quantity =
+        Math.floor(
+          quantity
+        );
+    }
+
+    const stock =
+      getStock(
+        product
+      );
+
+    const usedElsewhere =
+      items
+        .filter(
+          (current) =>
+            current.id !==
+              itemId &&
+            current.productId ===
+              product.id
+        )
+        .reduce(
+          (
+            total,
+            current
+          ) =>
+            total +
+            Number(
+              current.quantity
+            ),
+          0
+        );
+
+    const available =
+      Math.max(
+        0,
+        stock -
+          usedElsewhere
+      );
+
+    if (
+      quantity >
+      available
+    ) {
+      alert(
+        `Available stock: ${available} ${getUnit(
+          product
+        )}`
+      );
+
+      quantity =
+        available;
+    }
+
+    setItems(
+      (current) =>
+        current.map(
+          (
+            currentItem
+          ) =>
+            currentItem.id ===
+            itemId
+              ? {
+                  ...currentItem,
+                  quantity,
+                }
+              : currentItem
+        )
+    );
+  }
+
+  /* ============================
+     RATE
+  ============================ */
+
+  function updateRate(
+    itemId: number,
+    value: string
+  ) {
+    let rate =
+      Number(value);
+
+    if (
+      !Number.isFinite(
+        rate
+      )
+    ) {
+      rate = 0;
+    }
+
+    rate =
+      Math.max(
+        0,
+        rate
+      );
+
+    setItems(
+      (current) =>
+        current.map(
+          (item) =>
+            item.id ===
+            itemId
+              ? {
+                  ...item,
+                  rate,
+                }
+              : item
+        )
+    );
+  }
+
+  /* ============================
+     TOTALS
+  ============================ */
+
+  const subtotal =
+    useMemo(() => {
+      return items.reduce(
+        (
+          total,
+          item
+        ) =>
+          total +
+          Number(
+            item.quantity
+          ) *
+            Number(
+              item.rate
+            ),
+        0
+      );
+    }, [
+      items,
+    ]);
+
+  const tax =
+    subtotal *
+    TAX_RATE;
+
+  const total =
+    subtotal +
+    tax;
+
+  const paid =
+    Math.max(
+      0,
+      Number(
+        paidAmount
+      ) || 0
+    );
+
+  const remaining =
+    Math.max(
+      0,
+      total - paid
+    );
 
   const change =
-    Math.max(0, paid - total);
-
-  /*
-   * NEW INVOICE
-   */
-  const createNewInvoice = () => {
-    const currentNumber = Number(
-      localStorage.getItem(
-        "hafiz_invoice_number"
-      ) || "1"
+    Math.max(
+      0,
+      paid - total
     );
 
-    const nextNumber = currentNumber + 1;
+  /* ============================
+     VALID ITEMS
+  ============================ */
 
-    localStorage.setItem(
-      "hafiz_invoice_number",
-      String(nextNumber)
+  function getValidItems() {
+    return items.filter(
+      (item) =>
+        item.productId >
+          0 &&
+        item.quantity > 0
+    );
+  }
+
+  /* ============================
+     VALIDATE
+  ============================ */
+
+  function validateInvoice() {
+    const validItems =
+      getValidItems();
+
+    if (
+      validItems.length ===
+      0
+    ) {
+      alert(
+        "Select at least one product."
+      );
+
+      return false;
+    }
+
+    const soldMap =
+      new Map<
+        number,
+        number
+      >();
+
+    validItems.forEach(
+      (item) => {
+        soldMap.set(
+          item.productId,
+
+          (soldMap.get(
+            item.productId
+          ) || 0) +
+            item.quantity
+        );
+      }
     );
 
-    setInvoiceNumber(`INV-${nextNumber}`);
+    for (const [
+      productId,
+      soldQuantity,
+    ] of soldMap) {
+      const product =
+        products.find(
+          (current) =>
+            current.id ===
+            productId
+        );
 
-    setCustomerName("");
-    setCustomerPhone("");
-    setPaidAmount("");
+      if (!product) {
+        alert(
+          "Product not found."
+        );
+
+        return false;
+      }
+
+      const stock =
+        getStock(
+          product
+        );
+
+      if (
+        soldQuantity >
+        stock
+      ) {
+        alert(
+          `${product.name} has only ${stock} ${getUnit(
+            product
+          )}`
+        );
+
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /* ============================
+     REDUCE COTTON BUNDLES
+  ============================ */
+
+  function reduceWeight(
+    product: Product,
+    soldWeight: number
+  ) {
+    let weightToRemove =
+      soldWeight;
+
+    const bundles =
+      product.bundles
+        .map(
+          (bundle) => {
+            const currentWeight =
+              Number(
+                bundle.weight
+              ) || 0;
+
+            if (
+              weightToRemove <=
+              0
+            ) {
+              return bundle;
+            }
+
+            if (
+              currentWeight <=
+              weightToRemove
+            ) {
+              weightToRemove -=
+                currentWeight;
+
+              return {
+                ...bundle,
+                weight: "0",
+              };
+            }
+
+            const newWeight =
+              currentWeight -
+              weightToRemove;
+
+            weightToRemove =
+              0;
+
+            return {
+              ...bundle,
+
+              weight:
+                String(
+                  Number(
+                    newWeight.toFixed(
+                      2
+                    )
+                  )
+                ),
+            };
+          }
+        )
+        .filter(
+          (bundle) =>
+            Number(
+              bundle.weight
+            ) > 0
+        );
+
+    return {
+      ...product,
+      bundles,
+    };
+  }
+
+  /* ============================
+     SAVE INVOICE
+  ============================ */
+
+  function saveInvoice() {
+    if (
+      !validateInvoice()
+    ) {
+      return;
+    }
+
+    const validItems =
+      getValidItems();
+
+    const soldMap =
+      new Map<
+        number,
+        number
+      >();
+
+    validItems.forEach(
+      (item) => {
+        soldMap.set(
+          item.productId,
+
+          (soldMap.get(
+            item.productId
+          ) || 0) +
+            item.quantity
+        );
+      }
+    );
+
+    const updatedProducts =
+      products.map(
+        (product) => {
+          const sold =
+            soldMap.get(
+              product.id
+            ) || 0;
+
+          if (
+            sold <= 0
+          ) {
+            return product;
+          }
+
+          if (
+            product.type ===
+            "weight"
+          ) {
+            return reduceWeight(
+              product,
+              sold
+            );
+          }
+
+          return {
+            ...product,
+
+            quantity:
+              Math.max(
+                0,
+                product.quantity -
+                  sold
+              ),
+          };
+        }
+      );
+
+    try {
+      localStorage.setItem(
+        PRODUCT_KEY,
+
+        JSON.stringify(
+          updatedProducts
+        )
+      );
+
+      setProducts(
+        updatedProducts
+      );
+
+      let number =
+        Number(
+          localStorage.getItem(
+            INVOICE_KEY
+          ) || "1"
+        );
+
+      if (
+        !Number.isFinite(
+          number
+        ) ||
+        number < 1
+      ) {
+        number = 1;
+      }
+
+      const nextNumber =
+        Math.floor(
+          number
+        ) + 1;
+
+      localStorage.setItem(
+        INVOICE_KEY,
+        String(
+          nextNumber
+        )
+      );
+
+      alert(
+        "Invoice saved successfully. Product stock updated."
+      );
+
+      setInvoiceNumber(
+        `INV-${nextNumber}`
+      );
+
+      resetForm();
+    } catch {
+      alert(
+        "Could not save invoice."
+      );
+    }
+  }
+
+  /* ============================
+     RESET FORM
+  ============================ */
+
+  function resetForm() {
+    setCustomerName(
+      ""
+    );
+
+    setCustomerPhone(
+      ""
+    );
+
+    setPaidAmount(
+      ""
+    );
 
     setItems([
       {
-        id: Date.now(),
-        product: "",
-        quantity: 1,
+        id: 1,
+
+        productId:
+          0,
+
+        productName:
+          "",
+
+        quantity:
+          1,
+
         rate: 0,
       },
     ]);
 
-    const now = new Date();
+    nextItemId.current =
+      2;
 
-    setInvoiceDate(
-      now.toLocaleString("en-PK", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      })
+    updateDate();
+  }
+
+  /* ============================
+     NEW INVOICE
+  ============================ */
+
+  function newInvoice() {
+    resetForm();
+
+    loadProducts();
+
+    let number =
+      Number(
+        localStorage.getItem(
+          INVOICE_KEY
+        ) || "1"
+      );
+
+    if (
+      !Number.isFinite(
+        number
+      ) ||
+      number < 1
+    ) {
+      number = 1;
+    }
+
+    setInvoiceNumber(
+      `INV-${Math.floor(
+        number
+      )}`
     );
-  };
+  }
 
-  /*
-   * PRINT
-   */
-  const handlePrint = () => {
+  /* ============================
+     PRINT
+  ============================ */
+
+  function printInvoice() {
+    if (
+      !validateInvoice()
+    ) {
+      return;
+    }
+
     window.print();
-  };
+  }
 
   return (
     <>
+
       {/* SCREEN */}
-      <div className="min-h-screen bg-slate-50 p-4 sm:p-6 print:hidden">
 
-        {/* HEADER */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Invoice Maker
-            </h1>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Create and print customer invoice
-            </p>
-          </div>
-
-          <div className="flex gap-2">
-
-            <button
-              type="button"
-              onClick={createNewInvoice}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-            >
-              New Invoice
-            </button>
-
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700"
-            >
-              🖨️ Print Invoice
-            </button>
-
-          </div>
-        </div>
+      <div className="min-h-screen bg-slate-50 p-4 md:p-6 print:hidden">
 
         <div className="mx-auto max-w-7xl">
 
+          {/* HEADER */}
+
+          <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+
+            <div>
+
+              <h1 className="text-2xl font-bold text-slate-900">
+                Invoice Maker
+              </h1>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Hafiz Electronic Charpai & Cotton West Merchant
+              </p>
+
+            </div>
+
+            <div className="flex gap-2">
+
+              <button
+                type="button"
+                onClick={
+                  newInvoice
+                }
+                className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold"
+              >
+                New Invoice
+              </button>
+
+              <button
+                type="button"
+                onClick={
+                  printInvoice
+                }
+                className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white"
+              >
+                Print Invoice
+              </button>
+
+            </div>
+
+          </div>
+
           {/* CUSTOMER INFO */}
+
           <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
             <div className="mb-5 flex items-center justify-between">
 
-              <div>
-                <h2 className="text-lg font-bold text-slate-900">
-                  Invoice Information
-                </h2>
+              <h2 className="text-lg font-bold">
+                Invoice Information
+              </h2>
 
-                <p className="text-sm text-slate-500">
-                  Enter customer and invoice details
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700">
-                {invoiceNumber}
+              <div className="rounded-xl bg-blue-50 px-4 py-2 font-bold text-blue-700">
+                {
+                  invoiceNumber
+                }
               </div>
 
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-3">
 
               <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
+
+                <label className="mb-2 block text-sm font-semibold">
                   Customer Name
                 </label>
 
                 <input
-                  type="text"
-                  value={customerName}
-                  onChange={(e) =>
-                    setCustomerName(e.target.value)
+                  value={
+                    customerName
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setCustomerName(
+                      event.target
+                        .value
+                    )
                   }
                   placeholder="Customer name"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-blue-500 focus:bg-white"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none"
                 />
+
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
+
+                <label className="mb-2 block text-sm font-semibold">
                   Customer Phone
                 </label>
 
                 <input
-                  type="text"
-                  value={customerPhone}
-                  onChange={(e) =>
-                    setCustomerPhone(e.target.value)
+                  value={
+                    customerPhone
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setCustomerPhone(
+                      event.target
+                        .value
+                    )
                   }
                   placeholder="03XX XXXXXXX"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-blue-500 focus:bg-white"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none"
                 />
+
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
+
+                <label className="mb-2 block text-sm font-semibold">
                   Date & Time
                 </label>
 
-                <div className="flex min-h-12 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700">
-                  {invoiceDate || "Loading..."}
+                <div className="flex min-h-12 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm">
+                  {invoiceDate ||
+                    "-"}
                 </div>
+
               </div>
 
             </div>
+
           </div>
 
           {/* ITEMS */}
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
 
-            <div className="flex items-center justify-between border-b border-slate-200 p-5">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+
+            <div className="flex flex-col gap-3 border-b p-5 sm:flex-row sm:items-center sm:justify-between">
 
               <div>
-                <h2 className="text-lg font-bold text-slate-900">
+
+                <h2 className="text-lg font-bold">
                   Invoice Items
                 </h2>
 
                 <p className="text-sm text-slate-500">
-                  Add products and quantities
+                  Products page ke saved products yahan automatically load honge.
                 </p>
+
               </div>
 
               <button
                 type="button"
-                onClick={addItem}
-                className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
+                onClick={
+                  addItem
+                }
+                className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white"
               >
                 + Add Item
               </button>
 
             </div>
 
+            {products.length ===
+              0 && (
+
+              <div className="border-b border-amber-200 bg-amber-50 px-5 py-4 text-sm font-semibold text-amber-700">
+                No products available. First add products from Products page.
+              </div>
+
+            )}
+
             <div className="overflow-x-auto p-5">
 
-              <table className="w-full min-w-200 border-collapse">
+              <table className="w-full min-w-262.5">
 
                 <thead>
-                  <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
+
+                  <tr className="border-b text-left text-xs uppercase text-slate-500">
 
                     <th className="px-3 py-3">
                       #
@@ -352,7 +1420,11 @@ export default function InvoicePage() {
                     </th>
 
                     <th className="px-3 py-3">
-                      Quantity
+                      Stock
+                    </th>
+
+                    <th className="px-3 py-3">
+                      Qty / Weight
                     </th>
 
                     <th className="px-3 py-3">
@@ -368,117 +1440,300 @@ export default function InvoicePage() {
                     </th>
 
                   </tr>
+
                 </thead>
 
                 <tbody>
 
-                  {items.map((item, index) => {
+                  {items.map(
+                    (
+                      item,
+                      index
+                    ) => {
 
-                    const amount =
-                      Number(item.quantity || 0) *
-                      Number(item.rate || 0);
+                      const product =
+                        products.find(
+                          (
+                            current
+                          ) =>
+                            current.id ===
+                            item.productId
+                        );
 
-                    return (
-                      <tr
-                        key={item.id}
-                        className="border-b border-slate-200"
-                      >
+                      const stock =
+                        product
+                          ? getStock(
+                              product
+                            )
+                          : 0;
 
-                        <td className="px-3 py-4 text-sm font-semibold">
-                          {index + 1}
-                        </td>
+                      const unit =
+                        product
+                          ? getUnit(
+                              product
+                            )
+                          : "";
 
-                        <td className="px-3 py-4">
+                      const amount =
+                        item.quantity *
+                        item.rate;
 
-                          <select
-                            value={item.product}
-                            onChange={(e) =>
-                              updateItem(
-                                item.id,
-                                "product",
-                                e.target.value
-                              )
-                            }
-                            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
-                          >
+                      return (
+                        <tr
+                          key={
+                            item.id
+                          }
+                          className="border-b border-slate-100"
+                        >
 
-                            <option value="">
-                              Select Product
-                            </option>
+                          <td className="px-3 py-4 font-semibold">
+                            {index +
+                              1}
+                          </td>
 
-                            {availableProducts.map(
-                              (product) => (
-                                <option
-                                  key={product}
-                                  value={product}
-                                >
-                                  {product}
-                                </option>
-                              )
+                          {/* PRODUCT */}
+
+                          <td className="px-3 py-4">
+
+                            <select
+                              value={
+                                item.productId
+                              }
+                              onChange={(
+                                event
+                              ) =>
+                                selectProduct(
+                                  item.id,
+
+                                  Number(
+                                    event
+                                      .target
+                                      .value
+                                  )
+                                )
+                              }
+                              className="w-80 rounded-xl border border-slate-200 bg-white px-3 py-3"
+                            >
+
+                              <option
+                                value={
+                                  0
+                                }
+                              >
+                                Select Product
+                              </option>
+
+                              {products.map(
+                                (
+                                  option
+                                ) => {
+
+                                  const optionStock =
+                                    getStock(
+                                      option
+                                    );
+
+                                  return (
+                                    <option
+                                      key={
+                                        option.id
+                                      }
+                                      value={
+                                        option.id
+                                      }
+                                      disabled={
+                                        optionStock <=
+                                        0
+                                      }
+                                    >
+                                      {
+                                        option.name
+                                      }{" "}
+                                      -{" "}
+                                      {
+                                        optionStock
+                                      }{" "}
+                                      {getUnit(
+                                        option
+                                      )}
+                                    </option>
+                                  );
+                                }
+                              )}
+
+                            </select>
+
+                            {product && (
+
+                              <div className="mt-2 text-xs text-slate-500">
+
+                                {
+                                  product.category
+                                }
+
+                                {product.brand
+                                  ? ` • ${product.brand}`
+                                  : ""}
+
+                                {product.model
+                                  ? ` • ${product.model}`
+                                  : ""}
+
+                                {product.quality
+                                  ? ` • ${product.quality}`
+                                  : ""}
+
+                                {product.size
+                                  ? ` • Size ${product.size}`
+                                  : ""}
+
+                              </div>
+
                             )}
 
-                          </select>
+                          </td>
 
-                        </td>
+                          {/* STOCK */}
 
-                        <td className="px-3 py-4">
+                          <td className="px-3 py-4">
 
-                          <input
-                            type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              updateItem(
-                                item.id,
-                                "quantity",
-                                e.target.value
-                              )
-                            }
-                            className="w-28 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
-                          />
+                            {product ? (
+                              <>
 
-                        </td>
+                                <div
+                                  className={`font-bold ${
+                                    stock >
+                                    0
+                                      ? "text-emerald-600"
+                                      : "text-red-600"
+                                  }`}
+                                >
+                                  {
+                                    stock
+                                  }{" "}
+                                  {
+                                    unit
+                                  }
+                                </div>
 
-                        <td className="px-3 py-4">
+                                <div className="text-xs text-slate-400">
+                                  Available
+                                </div>
 
-                          <input
-                            type="number"
-                            min="0"
-                            value={item.rate}
-                            onChange={(e) =>
-                              updateItem(
-                                item.id,
-                                "rate",
-                                e.target.value
-                              )
-                            }
-                            className="w-32 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
-                          />
+                              </>
+                            ) : (
+                              "—"
+                            )}
 
-                        </td>
+                          </td>
 
-                        <td className="px-3 py-4 text-right font-bold text-slate-900">
-                          {formatPrice(amount)}
-                        </td>
+                          {/* QUANTITY */}
 
-                        <td className="px-3 py-4">
+                          <td className="px-3 py-4">
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              removeItem(item.id)
-                            }
-                            disabled={items.length === 1}
-                            className="rounded-lg px-3 py-2 text-sm font-semibold text-red-500 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-slate-300"
-                          >
-                            Remove
-                          </button>
+                            <input
+                              type="number"
+                              min="0"
+                              step={
+                                product?.type ===
+                                "weight"
+                                  ? "0.01"
+                                  : "1"
+                              }
+                              value={
+                                item.quantity
+                              }
+                              disabled={
+                                !product
+                              }
+                              onChange={(
+                                event
+                              ) =>
+                                updateQuantity(
+                                  item.id,
+                                  event
+                                    .target
+                                    .value
+                                )
+                              }
+                              className="w-28 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"
+                            />
 
-                        </td>
+                            {product && (
 
-                      </tr>
-                    );
-                  })}
+                              <div className="mt-1 text-xs text-slate-400">
+                                {
+                                  unit
+                                }
+                              </div>
+
+                            )}
+
+                          </td>
+
+                          {/* RATE */}
+
+                          <td className="px-3 py-4">
+
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={
+                                item.rate
+                              }
+                              disabled={
+                                !product
+                              }
+                              onChange={(
+                                event
+                              ) =>
+                                updateRate(
+                                  item.id,
+                                  event
+                                    .target
+                                    .value
+                                )
+                              }
+                              className="w-32 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"
+                            />
+
+                          </td>
+
+                          {/* AMOUNT */}
+
+                          <td className="px-3 py-4 text-right font-bold">
+                            {formatPrice(
+                              amount
+                            )}
+                          </td>
+
+                          {/* REMOVE */}
+
+                          <td className="px-3 py-4">
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                removeItem(
+                                  item.id
+                                )
+                              }
+                              disabled={
+                                items.length ===
+                                1
+                              }
+                              className="rounded-lg px-3 py-2 text-sm font-semibold text-red-600 disabled:text-slate-300"
+                            >
+                              Remove
+                            </button>
+
+                          </td>
+
+                        </tr>
+                      );
+                    }
+                  )}
 
                 </tbody>
 
@@ -486,119 +1741,156 @@ export default function InvoicePage() {
 
             </div>
 
-            {/* SUMMARY */}
-            <div className="border-t border-slate-200 p-5">
+            {/* TOTALS */}
+
+            <div className="border-t p-5">
 
               <div className="ml-auto max-w-md space-y-3">
 
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between">
 
-                  <span className="text-slate-500">
+                  <span>
                     Subtotal
                   </span>
 
-                  <span className="font-semibold">
-                    {formatPrice(subtotal)}
-                  </span>
+                  <strong>
+                    {formatPrice(
+                      subtotal
+                    )}
+                  </strong>
 
                 </div>
 
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between">
 
-                  <span className="text-slate-500">
+                  <span>
                     Tax (5%)
                   </span>
 
-                  <span className="font-semibold">
-                    {formatPrice(tax)}
-                  </span>
+                  <strong>
+                    {formatPrice(
+                      tax
+                    )}
+                  </strong>
 
                 </div>
 
-                <div className="border-t border-dashed border-slate-300 pt-3">
+                <div className="flex justify-between border-t border-dashed pt-3">
 
-                  <div className="flex justify-between">
+                  <span className="text-lg font-bold">
+                    Total
+                  </span>
 
-                    <span className="text-lg font-bold">
-                      Total
-                    </span>
-
-                    <span className="text-xl font-bold text-blue-600">
-                      {formatPrice(total)}
-                    </span>
-
-                  </div>
+                  <strong className="text-xl text-blue-600">
+                    {formatPrice(
+                      total
+                    )}
+                  </strong>
 
                 </div>
 
                 {/* PAID */}
+
                 <div className="flex items-center justify-between gap-4 pt-3">
 
-                  <label className="text-sm font-semibold text-slate-700">
+                  <label className="font-semibold">
                     Paid Amount
                   </label>
 
                   <input
                     type="number"
                     min="0"
-                    value={paidAmount}
-                    onChange={(e) =>
-                      setPaidAmount(e.target.value)
+                    step="0.01"
+                    value={
+                      paidAmount
                     }
-                    placeholder="0"
-                    className="w-40 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-right text-sm font-semibold outline-none focus:border-blue-500"
+                    onChange={(
+                      event
+                    ) =>
+                      setPaidAmount(
+                        event.target
+                          .value
+                      )
+                    }
+                    className="w-40 rounded-xl border border-slate-200 px-3 py-3 text-right"
                   />
 
                 </div>
 
                 {/* REMAINING */}
-                {paid > 0 &&
-                  paid < total && (
-                    <div className="flex justify-between rounded-xl bg-red-50 px-4 py-3">
 
-                      <span className="font-bold text-red-600">
-                        Remaining Balance
-                      </span>
+                {total >
+                  paid && (
 
-                      <span className="font-bold text-red-600">
-                        {formatPrice(
-                          remainingBalance
-                        )}
-                      </span>
+                  <div className="flex justify-between rounded-xl bg-red-50 px-4 py-3 font-bold text-red-600">
 
-                    </div>
-                  )}
-
-                {/* PAID */}
-                {paid === total &&
-                  paid > 0 && (
-                    <div className="flex justify-between rounded-xl bg-green-50 px-4 py-3">
-
-                      <span className="font-bold text-green-700">
-                        Payment Status
-                      </span>
-
-                      <span className="font-bold text-green-600">
-                        PAID
-                      </span>
-
-                    </div>
-                  )}
-
-                {/* CHANGE */}
-                {paid > total && (
-                  <div className="flex justify-between rounded-xl bg-green-50 px-4 py-3">
-
-                    <span className="font-bold text-green-700">
-                      Change
+                    <span>
+                      Remaining Balance
                     </span>
 
-                    <span className="font-bold text-green-600">
-                      {formatPrice(change)}
+                    <span>
+                      {formatPrice(
+                        remaining
+                      )}
                     </span>
 
                   </div>
+
                 )}
+
+                {/* PAID */}
+
+                {total >
+                  0 &&
+                  paid >=
+                    total && (
+
+                  <div className="flex justify-between rounded-xl bg-green-50 px-4 py-3 font-bold text-green-700">
+
+                    <span>
+                      Payment Status
+                    </span>
+
+                    <span>
+                      PAID
+                    </span>
+
+                  </div>
+
+                )}
+
+                {/* CHANGE */}
+
+                {change >
+                  0 && (
+
+                  <div className="flex justify-between rounded-xl bg-blue-50 px-4 py-3 font-bold text-blue-700">
+
+                    <span>
+                      Change
+                    </span>
+
+                    <span>
+                      {formatPrice(
+                        change
+                      )}
+                    </span>
+
+                  </div>
+
+                )}
+
+                {/* SAVE */}
+
+                <button
+                  type="button"
+                  onClick={
+                    saveInvoice
+                  }
+                  className="mt-4 w-full rounded-xl bg-slate-900 px-5 py-4 font-bold text-white hover:bg-slate-800"
+                >
+                  Save Invoice & Update Stock
+                </button>
 
               </div>
 
@@ -607,39 +1899,71 @@ export default function InvoicePage() {
           </div>
 
         </div>
+
       </div>
 
-      {/* PRINT VERSION */}
+      {/* =========================
+          PRINT INVOICE
+      ========================= */}
+
       <div className="invoice-print hidden">
 
         <div className="print-header">
 
           <div>
-            <h1>HAFIZ RETAIL POS</h1>
-            <p>Retail Sales Invoice</p>
+
+            <h1>
+              HAFIZ ELECTRONIC CHARPAI & COTTON WEST MERCHANT
+            </h1>
+
+            <p>
+              Retail Sales Invoice
+            </p>
+
           </div>
 
-          <div className="print-invoice-number">
-            {invoiceNumber}
-          </div>
+          <strong>
+            {
+              invoiceNumber
+            }
+          </strong>
 
         </div>
 
         <div className="print-info">
 
           <div>
-            <strong>Customer:</strong>{" "}
-            {customerName || "Walk-in Customer"}
+
+            <b>
+              Customer:
+            </b>{" "}
+
+            {customerName ||
+              "Walk-in Customer"}
+
           </div>
 
           <div>
-            <strong>Phone:</strong>{" "}
-            {customerPhone || "-"}
+
+            <b>
+              Phone:
+            </b>{" "}
+
+            {customerPhone ||
+              "-"}
+
           </div>
 
           <div>
-            <strong>Date:</strong>{" "}
-            {invoiceDate || "-"}
+
+            <b>
+              Date:
+            </b>{" "}
+
+            {
+              invoiceDate
+            }
+
           </div>
 
         </div>
@@ -647,54 +1971,135 @@ export default function InvoicePage() {
         <table className="print-table">
 
           <thead>
+
             <tr>
-              <th>#</th>
-              <th>Product</th>
-              <th>Qty</th>
-              <th>Rate</th>
-              <th>Amount</th>
+
+              <th>
+                #
+              </th>
+
+              <th>
+                Product
+              </th>
+
+              <th>
+                Details
+              </th>
+
+              <th>
+                Qty / Weight
+              </th>
+
+              <th>
+                Rate
+              </th>
+
+              <th>
+                Amount
+              </th>
+
             </tr>
+
           </thead>
 
           <tbody>
 
-            {items
-              .filter(
-                (item) =>
-                  item.product.trim() !== ""
-              )
-              .map((item, index) => {
+            {getValidItems().map(
+              (
+                item,
+                index
+              ) => {
 
-                const amount =
-                  Number(item.quantity || 0) *
-                  Number(item.rate || 0);
+                const product =
+                  products.find(
+                    (
+                      current
+                    ) =>
+                      current.id ===
+                      item.productId
+                  );
+
+                const details =
+                  product
+                    ? [
+                        product.brand,
+
+                        product.model,
+
+                        product.quality,
+
+                        product.size
+                          ? `Size ${product.size}`
+                          : "",
+
+                        product.material,
+
+                        product.color,
+                      ]
+                        .filter(
+                          Boolean
+                        )
+                        .join(
+                          " / "
+                        ) ||
+                      "-"
+                    : "-";
 
                 return (
-                  <tr key={item.id}>
+                  <tr
+                    key={
+                      item.id
+                    }
+                  >
 
                     <td>
-                      {index + 1}
+                      {index +
+                        1}
                     </td>
 
                     <td>
-                      {item.product}
+                      {
+                        item.productName
+                      }
                     </td>
 
                     <td>
-                      {item.quantity}
+                      {
+                        details
+                      }
                     </td>
 
                     <td>
-                      {formatPrice(item.rate)}
+
+                      {
+                        item.quantity
+                      }{" "}
+
+                      {product
+                        ? getUnit(
+                            product
+                          )
+                        : ""}
+
                     </td>
 
                     <td>
-                      {formatPrice(amount)}
+                      {formatPrice(
+                        item.rate
+                      )}
+                    </td>
+
+                    <td>
+                      {formatPrice(
+                        item.quantity *
+                          item.rate
+                      )}
                     </td>
 
                   </tr>
                 );
-              })}
+              }
+            )}
 
           </tbody>
 
@@ -703,51 +2108,97 @@ export default function InvoicePage() {
         <div className="print-summary">
 
           <div>
-            <span>Subtotal</span>
+
+            <span>
+              Subtotal
+            </span>
+
             <strong>
-              {formatPrice(subtotal)}
+              {formatPrice(
+                subtotal
+              )}
             </strong>
+
           </div>
 
           <div>
-            <span>Tax</span>
+
+            <span>
+              Tax (5%)
+            </span>
+
             <strong>
-              {formatPrice(tax)}
+              {formatPrice(
+                tax
+              )}
             </strong>
+
           </div>
 
           <div className="print-total">
-            <span>Total</span>
+
+            <span>
+              Total
+            </span>
+
             <strong>
-              {formatPrice(total)}
+              {formatPrice(
+                total
+              )}
             </strong>
+
           </div>
 
           <div>
-            <span>Paid</span>
+
+            <span>
+              Paid
+            </span>
+
             <strong>
-              {formatPrice(paid)}
+              {formatPrice(
+                paid
+              )}
             </strong>
+
           </div>
 
-          {remainingBalance > 0 && (
-            <div className="print-balance">
-              <span>Remaining Balance</span>
+          {remaining >
+            0 && (
+
+            <div>
+
+              <span>
+                Remaining
+              </span>
+
               <strong>
                 {formatPrice(
-                  remainingBalance
+                  remaining
                 )}
               </strong>
+
             </div>
+
           )}
 
-          {change > 0 && (
-            <div className="print-change">
-              <span>Change</span>
+          {change >
+            0 && (
+
+            <div>
+
+              <span>
+                Change
+              </span>
+
               <strong>
-                {formatPrice(change)}
+                {formatPrice(
+                  change
+                )}
               </strong>
+
             </div>
+
           )}
 
         </div>
@@ -758,9 +2209,12 @@ export default function InvoicePage() {
 
       </div>
 
+      {/* =========================
+          PRINT CSS
+      ========================= */}
+
       <style jsx global>{`
         @media print {
-
           @page {
             size: A4 landscape;
             margin: 10mm;
@@ -773,14 +2227,14 @@ export default function InvoicePage() {
           .invoice-print {
             display: block !important;
             width: 100%;
-            font-family: Arial, Helvetica, sans-serif;
             color: #111827;
+            font-family: Arial, sans-serif;
           }
 
           .print-header {
             display: flex;
-            align-items: flex-start;
             justify-content: space-between;
+            gap: 20px;
             border-bottom: 2px solid #111827;
             padding-bottom: 12px;
             margin-bottom: 15px;
@@ -788,29 +2242,24 @@ export default function InvoicePage() {
 
           .print-header h1 {
             margin: 0;
-            font-size: 24px;
-            font-weight: 800;
+            font-size: 22px;
           }
 
           .print-header p {
             margin: 4px 0 0;
             font-size: 13px;
-            color: #4b5563;
           }
 
-          .print-invoice-number {
+          .print-header strong {
             border: 1px solid #111827;
             padding: 8px 14px;
-            font-size: 15px;
-            font-weight: 700;
+            height: fit-content;
           }
 
           .print-info {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
-            gap: 20px;
-            border-bottom: 1px solid #9ca3af;
-            padding-bottom: 12px;
+            gap: 15px;
             margin-bottom: 15px;
             font-size: 13px;
           }
@@ -824,31 +2273,12 @@ export default function InvoicePage() {
           .print-table th,
           .print-table td {
             border: 1px solid #374151;
-            padding: 8px 10px;
+            padding: 8px;
             text-align: left;
           }
 
-          .print-table th {
-            background: #f3f4f6 !important;
-            font-weight: 700;
-          }
-
-          .print-table th:nth-child(1),
-          .print-table td:nth-child(1) {
-            width: 45px;
-            text-align: center;
-          }
-
-          .print-table th:nth-child(3),
-          .print-table td:nth-child(3) {
-            width: 90px;
-            text-align: center;
-          }
-
-          .print-table th:nth-child(4),
-          .print-table td:nth-child(4),
-          .print-table th:nth-child(5),
-          .print-table td:nth-child(5) {
+          .print-table th:last-child,
+          .print-table td:last-child {
             text-align: right;
           }
 
@@ -868,32 +2298,20 @@ export default function InvoicePage() {
           .print-total {
             border-top: 2px solid #111827;
             border-bottom: 1px solid #111827;
-            margin-top: 5px;
             padding: 8px 0 !important;
             font-size: 16px;
-            font-weight: 800;
-          }
-
-          .print-balance {
-            color: #b91c1c;
-            font-weight: 700;
-          }
-
-          .print-change {
-            color: #15803d;
-            font-weight: 700;
           }
 
           .print-footer {
-            border-top: 1px solid #9ca3af;
             margin-top: 25px;
+            border-top: 1px solid #9ca3af;
             padding-top: 10px;
             text-align: center;
-            font-size: 12px;
+            font-size: 13px;
           }
-
         }
       `}</style>
+
     </>
   );
 }
