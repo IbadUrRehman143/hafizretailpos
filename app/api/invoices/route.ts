@@ -968,6 +968,29 @@ export async function POST(
                     0,
                 });
 
+              await tx.orm.public.InventoryTransaction.create({
+                productId:
+                  product.id,
+
+                type:
+                  "SALE",
+
+                quantity:
+                  soldAmount,
+
+                unit:
+                  "KG",
+
+                referenceType:
+                  "INVOICE",
+
+                referenceId:
+                  invoice.id,
+
+                note:
+                  `Sale ${invoice.invoiceNumber}`,
+              });
+
               continue;
             }
 
@@ -987,6 +1010,30 @@ export async function POST(
                 quantity:
                   newQuantity,
               });
+
+            await tx.orm.public.InventoryTransaction.create({
+              productId:
+                product.id,
+
+              type:
+                "SALE",
+
+              quantity:
+                soldAmount,
+
+              unit:
+                product.unit ||
+                "PCS",
+
+              referenceType:
+                "INVOICE",
+
+              referenceId:
+                invoice.id,
+
+              note:
+                `Sale ${invoice.invoiceNumber}`,
+            });
           }
 
           /* =============================================

@@ -1577,7 +1577,7 @@ function SaleViewModal({
 
           <div className="overflow-x-auto rounded-xl border border-slate-200">
 
-            <table className="w-full min-w-[800px]">
+            <table className="w-full min-w-200">
 
               <thead className="bg-slate-50">
 

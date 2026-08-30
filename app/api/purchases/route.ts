@@ -1,81 +1,165 @@
 import { NextResponse } from "next/server";
+
 import { db } from "@/src/prisma/db";
+
+/* =====================================================
+   TYPES
+===================================================== */
 
 type PurchaseItemInput = {
   productId: number;
   quantity: number;
   purchasePrice: number;
   weightEntries?: string;
+
+  bundles?: number[];
 };
 
-function safeNumber(value: unknown) {
-  const number = Number(value);
+/* =====================================================
+   SAFE NUMBER
+===================================================== */
 
-  return Number.isFinite(number) ? number : 0;
+function safeNumber(
+  value: unknown
+) {
+  const number =
+    Number(value);
+
+  return Number.isFinite(
+    number
+  )
+    ? number
+    : 0;
 }
 
-function parseWeightEntries(value: unknown) {
-  return String(value || "")
+/* =====================================================
+   PARSE WEIGHT ENTRIES
+
+   Example:
+   "82+115+67"
+
+   Result:
+   [82, 115, 67]
+===================================================== */
+
+function parseWeightEntries(
+  value: unknown
+) {
+  return String(
+    value || ""
+  )
     .split("+")
-    .map((item) => Number(item.trim()))
-    .filter((item) => Number.isFinite(item) && item > 0);
+    .map(
+      (item) =>
+        Number(
+          item.trim()
+        )
+    )
+    .filter(
+      (item) =>
+        Number.isFinite(
+          item
+        ) &&
+        item > 0
+    );
 }
+
+/* =====================================================
+   PAYMENT STATUS
+===================================================== */
 
 function normalizeStatus(
   paidAmount: number,
   totalAmount: number
 ) {
-  if (paidAmount <= 0) {
+  if (
+    paidAmount <= 0
+  ) {
     return "UNPAID";
   }
 
-  if (paidAmount >= totalAmount) {
+  if (
+    paidAmount >=
+    totalAmount
+  ) {
     return "PAID";
   }
 
   return "PARTIAL";
 }
 
-/* ======================================================
+/* =====================================================
    GET PURCHASES
-====================================================== */
+===================================================== */
 
 export async function GET() {
   try {
+    /* =================================================
+       LOAD PURCHASES
+    ================================================= */
+
     const purchases =
       await db.orm.public.Purchase.all();
+
+    /* =================================================
+       LOAD ITEMS
+    ================================================= */
 
     const purchaseItems =
       await db.orm.public.PurchaseItem.all();
 
+    /* =================================================
+       LOAD PAYMENTS
+    ================================================= */
+
     const purchasePayments =
       await db.orm.public.PurchasePayment.all();
 
-    const result = purchases
-      .map((purchase) => {
-        const items = purchaseItems.filter(
-          (item) =>
-            item.purchaseId === purchase.id
+    /* =================================================
+       MAP DATA
+    ================================================= */
+
+    const result =
+      purchases
+        .map(
+          (purchase) => {
+            const items =
+              purchaseItems.filter(
+                (item) =>
+                  item.purchaseId ===
+                  purchase.id
+              );
+
+            const payments =
+              purchasePayments.filter(
+                (payment) =>
+                  payment.purchaseId ===
+                  purchase.id
+              );
+
+            return {
+              ...purchase,
+
+              items,
+
+              payments,
+            };
+          }
+        )
+        .sort(
+          (a, b) =>
+            b.id - a.id
         );
 
-        const payments =
-          purchasePayments.filter(
-            (payment) =>
-              payment.purchaseId ===
-              purchase.id
-          );
-
-        return {
-          ...purchase,
-          items,
-          payments,
-        };
-      })
-      .sort((a, b) => b.id - a.id);
+    /* =================================================
+       SUCCESS
+    ================================================= */
 
     return NextResponse.json({
       success: true,
-      purchases: result,
+
+      purchases:
+        result,
     });
   } catch (error) {
     console.error(
@@ -86,6 +170,7 @@ export async function GET() {
     return NextResponse.json(
       {
         success: false,
+
         message:
           "Failed to load purchases.",
       },
@@ -96,50 +181,65 @@ export async function GET() {
   }
 }
 
-/* ======================================================
+/* =====================================================
    POST NEW PURCHASE
-====================================================== */
+===================================================== */
 
 export async function POST(
   request: Request
 ) {
   try {
-    const body = await request.json();
+    const body =
+      await request.json();
 
-    /* =========================
+    /* =================================================
        BASIC DATA
-    ========================= */
+    ================================================= */
 
     const supplierId =
-      safeNumber(body.supplierId);
+      safeNumber(
+        body.supplierId
+      );
 
-    const supplierName = String(
-      body.supplierName || ""
-    ).trim();
+    const supplierName =
+      String(
+        body.supplierName ||
+          ""
+      ).trim();
 
-    const supplierPhone = String(
-      body.supplierPhone || ""
-    ).trim();
+    const supplierPhone =
+      String(
+        body.supplierPhone ||
+          ""
+      ).trim();
 
-    const paymentMethod = String(
-      body.paymentMethod || "Cash"
-    );
+    const paymentMethod =
+      String(
+        body.paymentMethod ||
+          "Cash"
+      );
 
-    const notes = String(
-      body.notes || ""
-    ).trim();
+    const notes =
+      String(
+        body.notes ||
+          ""
+      ).trim();
 
     const paidAmount =
-      safeNumber(body.paidAmount);
+      safeNumber(
+        body.paidAmount
+      );
 
     const rawItems: PurchaseItemInput[] =
-      Array.isArray(body.items)
+      Array.isArray(
+        body.items
+      )
         ? body.items
         : [];
 
-    /* =========================
+    /* =================================================
        VALIDATION
-    ========================= */
+    ================================================= */
 
     if (
       !supplierId &&
@@ -148,6 +248,7 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
+
           message:
             "Supplier is required.",
         },
@@ -157,10 +258,14 @@ export async function POST(
       );
     }
 
-    if (rawItems.length === 0) {
+    if (
+      rawItems.length ===
+      0
+    ) {
       return NextResponse.json(
         {
           success: false,
+
           message:
             "At least one product is required.",
         },
@@ -170,10 +275,13 @@ export async function POST(
       );
     }
 
-    if (paidAmount < 0) {
+    if (
+      paidAmount < 0
+    ) {
       return NextResponse.json(
         {
           success: false,
+
           message:
             "Paid amount cannot be negative.",
         },
@@ -183,42 +291,60 @@ export async function POST(
       );
     }
 
-    /* =========================
-       TRANSACTION
-    ========================= */
+    /* =================================================
+       DATABASE TRANSACTION
+
+       Purchase
+       +
+       Purchase Items
+       +
+       Product Stock
+       +
+       Inventory History
+       +
+       Payment
+
+       All together.
+    ================================================= */
 
     const result =
       await db.transaction(
         async (tx) => {
-          /* =========================
+          /* =============================================
              SUPPLIER
-          ========================= */
+          ============================================= */
 
           let supplier;
 
-          if (supplierId > 0) {
+          if (
+            supplierId > 0
+          ) {
             supplier =
               await tx.orm.public.Supplier
                 .where({
-                  id: supplierId,
+                  id:
+                    supplierId,
                 })
                 .first();
 
-            if (!supplier) {
+            if (
+              !supplier
+            ) {
               throw new Error(
                 "Selected supplier not found."
               );
             }
           } else {
-            /*
-              Supplier ID nahi mila to
-              purchase ke saath supplier
-              create kar sakte hain.
-            */
+            /* ===========================================
+               CREATE / FIND SUPPLIER
+            =========================================== */
 
-            let existingSupplier = null;
+            let existingSupplier =
+              null;
 
-            if (supplierPhone) {
+            if (
+              supplierPhone
+            ) {
               existingSupplier =
                 await tx.orm.public.Supplier
                   .where({
@@ -228,14 +354,18 @@ export async function POST(
                   .first();
             }
 
-            if (existingSupplier) {
+            if (
+              existingSupplier
+            ) {
               supplier =
                 existingSupplier;
             } else {
               supplier =
                 await tx.orm.public.Supplier.create(
                   {
-                    name: supplierName,
+                    name:
+                      supplierName,
+
                     phone:
                       supplierPhone,
                   }
@@ -243,21 +373,26 @@ export async function POST(
             }
           }
 
-          /* =========================
-             LOAD PRODUCTS
-          ========================= */
+          /* =============================================
+             PREPARE PURCHASE ITEMS
+          ============================================= */
 
-          const preparedItems = [];
+          const preparedItems =
+            [];
 
-          let subtotal = 0;
+          let subtotal =
+            0;
 
-          for (const rawItem of rawItems) {
+          for (
+            const rawItem of
+            rawItems
+          ) {
             const productId =
               safeNumber(
                 rawItem.productId
               );
 
-            const quantity =
+            let quantity =
               safeNumber(
                 rawItem.quantity
               );
@@ -267,73 +402,129 @@ export async function POST(
                 rawItem.purchasePrice
               );
 
-            if (productId <= 0) {
+            /* ===========================================
+               VALID PRODUCT
+            =========================================== */
+
+            if (
+              productId <= 0
+            ) {
               throw new Error(
                 "Invalid product."
               );
             }
 
-            if (quantity <= 0) {
-              throw new Error(
-                "Purchase quantity must be greater than 0."
-              );
-            }
+            /* ===========================================
+               PURCHASE PRICE
+            =========================================== */
 
-            if (purchasePrice <= 0) {
+            if (
+              purchasePrice <=
+              0
+            ) {
               throw new Error(
                 "Purchase price must be greater than 0."
               );
             }
 
+            /* ===========================================
+               LOAD PRODUCT
+            =========================================== */
+
             const product =
               await tx.orm.public.Product
                 .where({
-                  id: productId,
+                  id:
+                    productId,
                 })
                 .first();
 
-            if (!product) {
+            if (
+              !product
+            ) {
               throw new Error(
                 `Product ID ${productId} not found.`
               );
             }
 
-            const productType = String(
-              product.type || ""
-            ).toLowerCase();
+            const productType =
+              String(
+                product.type ||
+                  ""
+              ).toLowerCase();
 
-            let weightEntries = "";
+            let weightEntries =
+              "";
 
             let purchasedQuantity =
               quantity;
 
-            /* =========================
+            /* ===========================================
                WEIGHT PRODUCT
-            ========================= */
+            =========================================== */
 
             if (
-              productType === "weight"
+              productType ===
+              "weight"
             ) {
-              const suppliedWeights =
-                parseWeightEntries(
-                  rawItem.weightEntries
-                );
-
               /*
-                Agar bundles diye hain:
-                82+115+67
+               * Frontend can send:
+               *
+               * weightEntries:
+               * "82+115+67"
+               *
+               * OR:
+               *
+               * bundles:
+               * [82, 115, 67]
+               */
 
-                quantity automatically
-                bundles ka total banega.
-              */
+              const bundleValues =
+                Array.isArray(
+                  rawItem.bundles
+                )
+                  ? rawItem.bundles
+                      .map(
+                        (
+                          weight
+                        ) =>
+                          safeNumber(
+                            weight
+                          )
+                      )
+                      .filter(
+                        (
+                          weight
+                        ) =>
+                          weight >
+                          0
+                      )
+                  : [];
+
+              const suppliedWeights =
+                bundleValues.length >
+                0
+                  ? bundleValues
+                  : parseWeightEntries(
+                      rawItem.weightEntries
+                    );
+
+              /* =========================================
+                 BUNDLE WEIGHTS PROVIDED
+              ========================================= */
 
               if (
-                suppliedWeights.length > 0
+                suppliedWeights.length >
+                0
               ) {
                 purchasedQuantity =
                   suppliedWeights.reduce(
-                    (total, weight) =>
-                      total + weight,
+                    (
+                      total,
+                      weight
+                    ) =>
+                      total +
+                      weight,
                     0
                   );
 
@@ -341,61 +532,138 @@ export async function POST(
                   suppliedWeights.join(
                     "+"
                   );
-              } else {
-                /*
-                  Agar user sirf 150 KG
-                  enter kare to usko
-                  single bundle treat karenge.
-                */
+              }
+
+              /* =========================================
+                 SINGLE WEIGHT VALUE
+              ========================================= */
+
+              else {
+                if (
+                  quantity <=
+                  0
+                ) {
+                  throw new Error(
+                    "Weight purchase must contain valid KG or bundle weights."
+                  );
+                }
+
+                purchasedQuantity =
+                  quantity;
 
                 weightEntries =
-                  String(quantity);
+                  String(
+                    quantity
+                  );
+              }
+
+              if (
+                purchasedQuantity <=
+                0
+              ) {
+                throw new Error(
+                  "Purchase weight must be greater than 0."
+                );
               }
             }
+
+            /* ===========================================
+               QUANTITY / SIZE PRODUCT
+            =========================================== */
+
+            else {
+              if (
+                quantity <= 0
+              ) {
+                throw new Error(
+                  "Purchase quantity must be greater than 0."
+                );
+              }
+
+              if (
+                !Number.isInteger(
+                  quantity
+                )
+              ) {
+                throw new Error(
+                  "PCS quantity must be a whole number."
+                );
+              }
+
+              purchasedQuantity =
+                quantity;
+            }
+
+            /* ===========================================
+               AMOUNT
+            =========================================== */
 
             const amount =
               purchasedQuantity *
               purchasePrice;
 
-            subtotal += amount;
+            subtotal +=
+              amount;
 
-            preparedItems.push({
-              product,
-              productId:
-                product.id,
-              productName:
-                product.name,
-              productType:
-                product.type,
-              unit:
-                productType ===
-                "weight"
-                  ? "KG"
-                  : product.unit ||
-                    "PCS",
-              quantity:
-                purchasedQuantity,
-              purchasePrice,
-              amount,
-              weightEntries,
-            });
+            preparedItems.push(
+              {
+                product,
+
+                productId:
+                  product.id,
+
+                productName:
+                  product.name,
+
+                productType:
+                  product.type,
+
+                unit:
+                  productType ===
+                  "weight"
+                    ? "KG"
+                    : product.unit ||
+                      "PCS",
+
+                quantity:
+                  purchasedQuantity,
+
+                purchasePrice,
+
+                amount,
+
+                weightEntries,
+              }
+            );
           }
 
-          /* =========================
+          /* =============================================
              PAYMENT VALIDATION
-          ========================= */
+          ============================================= */
 
-          if (paidAmount > subtotal) {
+          if (
+            paidAmount >
+            subtotal
+          ) {
             throw new Error(
               "Paid amount cannot be greater than purchase total."
             );
           }
 
+          /* =============================================
+             BALANCE
+          ============================================= */
+
           const remainingBalance =
             Math.max(
               0,
-              subtotal - paidAmount
+              subtotal -
+                paidAmount
             );
+
+          /* =============================================
+             STATUS
+          ============================================= */
 
           const status =
             normalizeStatus(
@@ -403,9 +671,9 @@ export async function POST(
               subtotal
             );
 
-          /* =========================
+          /* =============================================
              PURCHASE DATE
-          ========================= */
+          ============================================= */
 
           let purchaseDate =
             new Date().toISOString();
@@ -430,14 +698,18 @@ export async function POST(
             }
           }
 
-          /* =========================
-             CREATE PURCHASE
-          ========================= */
+          /* =============================================
+             TEMPORARY PURCHASE NUMBER
+          ============================================= */
 
           const temporaryNumber =
             `TEMP-PUR-${Date.now()}-${Math.random()
               .toString(36)
               .slice(2, 8)}`;
+
+          /* =============================================
+             CREATE PURCHASE
+          ============================================= */
 
           const purchase =
             await tx.orm.public.Purchase.create(
@@ -452,7 +724,8 @@ export async function POST(
                   supplier.name,
 
                 supplierPhone:
-                  supplier.phone || "",
+                  supplier.phone ||
+                  "",
 
                 purchaseDate,
 
@@ -468,34 +741,51 @@ export async function POST(
               }
             );
 
-          /* =========================
+          /* =============================================
              FINAL PURCHASE NUMBER
-          ========================= */
+
+             PUR-0001
+             PUR-0002
+             PUR-0003
+          ============================================= */
 
           const purchaseNumber =
             `PUR-${String(
               purchase.id
-            ).padStart(4, "0")}`;
+            ).padStart(
+              4,
+              "0"
+            )}`;
 
           const finalPurchase =
             await tx.orm.public.Purchase
               .where({
-                id: purchase.id,
+                id:
+                  purchase.id,
               })
               .update({
                 purchaseNumber,
               });
 
-          /* =========================
-             PURCHASE ITEMS +
+          /* =============================================
+             PURCHASE ITEMS
+             +
              STOCK INCREASE
-          ========================= */
+             +
+             INVENTORY HISTORY
+          ============================================= */
 
-          const createdItems = [];
+          const createdItems =
+            [];
 
           for (
-            const item of preparedItems
+            const item of
+            preparedItems
           ) {
+            /* ===========================================
+               CREATE PURCHASE ITEM
+            =========================================== */
+
             const createdItem =
               await tx.orm.public.PurchaseItem.create(
                 {
@@ -538,12 +828,13 @@ export async function POST(
                   ""
               ).toLowerCase();
 
-            /* =========================
+            /* ===========================================
                COTTON / WEIGHT STOCK
-            ========================= */
+            =========================================== */
 
             if (
-              productType === "weight"
+              productType ===
+              "weight"
             ) {
               const existingWeights =
                 parseWeightEntries(
@@ -556,21 +847,34 @@ export async function POST(
                   item.weightEntries
                 );
 
-              const newWeights = [
-                ...existingWeights,
-                ...purchasedWeights,
-              ];
+              const newWeights =
+                [
+                  ...existingWeights,
+                  ...purchasedWeights,
+                ];
+
+              /* =========================================
+                 UPDATE PRODUCT
+              ========================================= */
 
               await tx.orm.public.Product
                 .where({
-                  id: item.productId,
+                  id:
+                    item.productId,
                 })
                 .update({
                   /*
-                    Weight products mein
-                    inventory source
-                    weightEntries hai.
-                  */
+                   * Cotton inventory:
+                   *
+                   * Existing:
+                   * 82+115
+                   *
+                   * Purchase:
+                   * 67+94
+                   *
+                   * New:
+                   * 82+115+67+94
+                   */
 
                   weightEntries:
                     newWeights.join(
@@ -578,23 +882,24 @@ export async function POST(
                     ),
 
                   /*
-                    Latest purchase rate
-                    bhi update hoga.
-                  */
+                   * Product's latest
+                   * purchase/cost price.
+                   */
 
                   purchasePrice:
                     item.purchasePrice,
                 });
             }
 
-            /* =========================
+            /* ===========================================
                PCS / SIZE STOCK
-            ========================= */
+            =========================================== */
 
             else {
               const currentQuantity =
                 safeNumber(
-                  item.product.quantity
+                  item.product
+                    .quantity
                 );
 
               const newQuantity =
@@ -603,25 +908,65 @@ export async function POST(
 
               await tx.orm.public.Product
                 .where({
-                  id: item.productId,
+                  id:
+                    item.productId,
                 })
                 .update({
                   quantity:
                     newQuantity,
 
+                  /*
+                   * Latest cost price.
+                   */
+
                   purchasePrice:
                     item.purchasePrice,
                 });
             }
+
+            /* ===========================================
+               INVENTORY TRANSACTION
+
+               THIS CONNECTS:
+               PURCHASES → INVENTORY
+            =========================================== */
+
+            await tx.orm.public.InventoryTransaction.create(
+              {
+                productId:
+                  item.productId,
+
+                type:
+                  "PURCHASE",
+
+                quantity:
+                  item.quantity,
+
+                unit:
+                  item.unit,
+
+                referenceType:
+                  "PURCHASE",
+
+                referenceId:
+                  purchase.id,
+
+                note:
+                  `Purchase ${purchaseNumber}`,
+              }
+            );
           }
 
-          /* =========================
+          /* =============================================
              INITIAL PAYMENT
-          ========================= */
+          ============================================= */
 
-          let payment = null;
+          let payment =
+            null;
 
-          if (paidAmount > 0) {
+          if (
+            paidAmount > 0
+          ) {
             payment =
               await tx.orm.public.PurchasePayment.create(
                 {
@@ -637,6 +982,10 @@ export async function POST(
               );
           }
 
+          /* =============================================
+             RETURN TRANSACTION DATA
+          ============================================= */
+
           return {
             purchase:
               finalPurchase,
@@ -649,12 +998,16 @@ export async function POST(
         }
       );
 
+    /* =================================================
+       SUCCESS RESPONSE
+    ================================================= */
+
     return NextResponse.json(
       {
         success: true,
 
         message:
-          "Purchase saved successfully.",
+          "Purchase saved successfully and inventory updated.",
 
         purchase: {
           ...result.purchase,
@@ -664,7 +1017,9 @@ export async function POST(
 
           payments:
             result.payment
-              ? [result.payment]
+              ? [
+                  result.payment,
+                ]
               : [],
         },
       },
@@ -683,7 +1038,8 @@ export async function POST(
         success: false,
 
         message:
-          error instanceof Error
+          error instanceof
+            Error
             ? error.message
             : "Failed to save purchase.",
       },

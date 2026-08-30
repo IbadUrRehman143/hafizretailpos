@@ -633,6 +633,29 @@ export async function PUT(
                     0,
                 });
 
+              await tx.orm.public.InventoryTransaction.create({
+                productId:
+                  product.id,
+
+                type:
+                  "ADJUSTMENT_IN",
+
+                quantity:
+                  soldAmount,
+
+                unit:
+                  "KG",
+
+                referenceType:
+                  "INVOICE_EDIT",
+
+                referenceId:
+                  invoiceId,
+
+                note:
+                  `Sale edit restore ${oldInvoice.invoiceNumber}`,
+              });
+
               continue;
             }
 
@@ -658,6 +681,32 @@ export async function PUT(
                 quantity:
                   restoredQuantity,
               });
+
+            await tx.orm.public.InventoryTransaction.create({
+              productId:
+                product.id,
+
+              type:
+                "ADJUSTMENT_IN",
+
+              quantity:
+                soldAmount,
+
+              unit:
+                String(
+                  product.unit ||
+                    "PCS"
+                ),
+
+              referenceType:
+                "INVOICE_EDIT",
+
+              referenceId:
+                invoiceId,
+
+              note:
+                `Sale edit restore ${oldInvoice.invoiceNumber}`,
+            });
           }
 
           /* =============================================
@@ -1225,6 +1274,29 @@ export async function PUT(
                     0,
                 });
 
+              await tx.orm.public.InventoryTransaction.create({
+                productId:
+                  product.id,
+
+                type:
+                  "SALE",
+
+                quantity:
+                  soldAmount,
+
+                unit:
+                  "KG",
+
+                referenceType:
+                  "INVOICE",
+
+                referenceId:
+                  invoiceId,
+
+                note:
+                  `Sale updated ${updatedInvoice.invoiceNumber}`,
+              });
+
               continue;
             }
 
@@ -1248,6 +1320,32 @@ export async function PUT(
                 quantity:
                   newQuantity,
               });
+
+            await tx.orm.public.InventoryTransaction.create({
+              productId:
+                product.id,
+
+              type:
+                "SALE",
+
+              quantity:
+                soldAmount,
+
+              unit:
+                String(
+                  product.unit ||
+                    "PCS"
+                ),
+
+              referenceType:
+                "INVOICE",
+
+              referenceId:
+                invoiceId,
+
+              note:
+                `Sale updated ${updatedInvoice.invoiceNumber}`,
+            });
           }
 
           /* =============================================
@@ -1473,6 +1571,29 @@ export async function DELETE(
                     0,
                 });
 
+              await tx.orm.public.InventoryTransaction.create({
+                productId:
+                  product.id,
+
+                type:
+                  "SALE_CANCEL",
+
+                quantity:
+                  soldAmount,
+
+                unit:
+                  "KG",
+
+                referenceType:
+                  "INVOICE",
+
+                referenceId:
+                  invoiceId,
+
+                note:
+                  `Sale cancelled ${invoice.invoiceNumber}`,
+              });
+
               continue;
             }
 
@@ -1498,6 +1619,32 @@ export async function DELETE(
                 quantity:
                   restoredQuantity,
               });
+
+            await tx.orm.public.InventoryTransaction.create({
+              productId:
+                product.id,
+
+              type:
+                "SALE_CANCEL",
+
+              quantity:
+                soldAmount,
+
+              unit:
+                String(
+                  product.unit ||
+                    "PCS"
+                ),
+
+              referenceType:
+                "INVOICE",
+
+              referenceId:
+                invoiceId,
+
+              note:
+                `Sale cancelled ${invoice.invoiceNumber}`,
+            });
           }
 
           /* =============================================
