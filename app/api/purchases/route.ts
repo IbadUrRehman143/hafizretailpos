@@ -11,77 +11,45 @@ type PurchaseItemInput = {
   quantity: number;
   purchasePrice: number;
   weightEntries?: string;
-
   bundles?: number[];
 };
 
 /* =====================================================
-   SAFE NUMBER
+   HELPERS
 ===================================================== */
 
-function safeNumber(
-  value: unknown
-) {
-  const number =
-    Number(value);
+function safeNumber(value: unknown) {
+  const number = Number(value);
 
-  return Number.isFinite(
-    number
-  )
+  return Number.isFinite(number)
     ? number
     : 0;
 }
 
-/* =====================================================
-   PARSE WEIGHT ENTRIES
-
-   Example:
-   "82+115+67"
-
-   Result:
-   [82, 115, 67]
-===================================================== */
-
 function parseWeightEntries(
   value: unknown
 ) {
-  return String(
-    value || ""
-  )
+  return String(value || "")
     .split("+")
-    .map(
-      (item) =>
-        Number(
-          item.trim()
-        )
+    .map((item) =>
+      Number(item.trim())
     )
     .filter(
       (item) =>
-        Number.isFinite(
-          item
-        ) &&
+        Number.isFinite(item) &&
         item > 0
     );
 }
-
-/* =====================================================
-   PAYMENT STATUS
-===================================================== */
 
 function normalizeStatus(
   paidAmount: number,
   totalAmount: number
 ) {
-  if (
-    paidAmount <= 0
-  ) {
+  if (paidAmount <= 0) {
     return "UNPAID";
   }
 
-  if (
-    paidAmount >=
-    totalAmount
-  ) {
+  if (paidAmount >= totalAmount) {
     return "PAID";
   }
 
@@ -89,77 +57,50 @@ function normalizeStatus(
 }
 
 /* =====================================================
-   GET PURCHASES
+   GET ALL PURCHASES
 ===================================================== */
 
 export async function GET() {
   try {
-    /* =================================================
-       LOAD PURCHASES
-    ================================================= */
-
     const purchases =
       await db.orm.public.Purchase.all();
-
-    /* =================================================
-       LOAD ITEMS
-    ================================================= */
 
     const purchaseItems =
       await db.orm.public.PurchaseItem.all();
 
-    /* =================================================
-       LOAD PAYMENTS
-    ================================================= */
-
     const purchasePayments =
       await db.orm.public.PurchasePayment.all();
 
-    /* =================================================
-       MAP DATA
-    ================================================= */
+    const result = purchases
+      .map((purchase) => {
+        const items =
+          purchaseItems.filter(
+            (item) =>
+              item.purchaseId ===
+              purchase.id
+          );
 
-    const result =
-      purchases
-        .map(
-          (purchase) => {
-            const items =
-              purchaseItems.filter(
-                (item) =>
-                  item.purchaseId ===
-                  purchase.id
-              );
+        const payments =
+          purchasePayments.filter(
+            (payment) =>
+              payment.purchaseId ===
+              purchase.id
+          );
 
-            const payments =
-              purchasePayments.filter(
-                (payment) =>
-                  payment.purchaseId ===
-                  purchase.id
-              );
-
-            return {
-              ...purchase,
-
-              items,
-
-              payments,
-            };
-          }
-        )
-        .sort(
-          (a, b) =>
-            b.id - a.id
-        );
-
-    /* =================================================
-       SUCCESS
-    ================================================= */
+        return {
+          ...purchase,
+          items,
+          payments,
+        };
+      })
+      .sort(
+        (a, b) =>
+          b.id - a.id
+      );
 
     return NextResponse.json({
       success: true,
-
-      purchases:
-        result,
+      purchases: result,
     });
   } catch (error) {
     console.error(
@@ -170,6 +111,11 @@ export async function GET() {
     return NextResponse.json(
       {
         success: false,
+
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to load purchases.",
 
         message:
           "Failed to load purchases.",
@@ -203,26 +149,28 @@ export async function POST(
 
     const supplierName =
       String(
-        body.supplierName ||
-          ""
+        body.supplierName || ""
       ).trim();
 
     const supplierPhone =
       String(
-        body.supplierPhone ||
-          ""
+        body.supplierPhone || ""
+      ).trim();
+
+    const supplierBillNo =
+      String(
+        body.supplierBillNo || ""
       ).trim();
 
     const paymentMethod =
       String(
         body.paymentMethod ||
           "Cash"
-      );
+      ).trim() || "Cash";
 
     const notes =
       String(
-        body.notes ||
-          ""
+        body.notes || ""
       ).trim();
 
     const paidAmount =
@@ -231,24 +179,21 @@ export async function POST(
       );
 
     const rawItems: PurchaseItemInput[] =
-      Array.isArray(
-        body.items
-      )
+      Array.isArray(body.items)
         ? body.items
         : [];
 
     /* =================================================
-       VALIDATION
+       BASIC VALIDATION
     ================================================= */
 
     if (
-      !supplierId &&
+      supplierId <= 0 &&
       !supplierName
     ) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Supplier is required.",
         },
@@ -259,13 +204,11 @@ export async function POST(
     }
 
     if (
-      rawItems.length ===
-      0
+      rawItems.length === 0
     ) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "At least one product is required.",
         },
@@ -275,13 +218,10 @@ export async function POST(
       );
     }
 
-    if (
-      paidAmount < 0
-    ) {
+    if (paidAmount < 0) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Paid amount cannot be negative.",
         },
@@ -300,11 +240,9 @@ export async function POST(
        +
        Product Stock
        +
-       Inventory History
+       InventoryTransaction
        +
-       Payment
-
-       All together.
+       Initial PurchasePayment
     ================================================= */
 
     const result =
@@ -316,47 +254,107 @@ export async function POST(
 
           let supplier;
 
-          if (
-            supplierId > 0
-          ) {
+          if (supplierId > 0) {
             supplier =
               await tx.orm.public.Supplier
                 .where({
-                  id:
-                    supplierId,
+                  id: supplierId,
                 })
                 .first();
 
-            if (
-              !supplier
-            ) {
+            if (!supplier) {
               throw new Error(
                 "Selected supplier not found."
               );
             }
+
+            const supplierStatus =
+              String(
+                supplier.status ||
+                  ""
+              )
+                .trim()
+                .toLowerCase();
+
+            if (
+              [
+                "inactive",
+                "archived",
+                "deleted",
+              ].includes(
+                supplierStatus
+              )
+            ) {
+              throw new Error(
+                "Selected supplier is inactive."
+              );
+            }
           } else {
-            /* ===========================================
-               CREATE / FIND SUPPLIER
-            =========================================== */
+            /* =========================================
+               NO DEFAULT SUPPLIER
+
+               Only create/find supplier when actual
+               supplier information was supplied.
+            ========================================= */
+
+            const allSuppliers =
+              await tx.orm.public.Supplier.all();
 
             let existingSupplier =
               null;
 
-            if (
-              supplierPhone
-            ) {
+            if (supplierPhone) {
               existingSupplier =
-                await tx.orm.public.Supplier
-                  .where({
-                    phone:
-                      supplierPhone,
-                  })
-                  .first();
+                allSuppliers.find(
+                  (item) =>
+                    String(
+                      item.phone || ""
+                    ).trim() ===
+                    supplierPhone
+                ) || null;
             }
 
             if (
-              existingSupplier
+              !existingSupplier &&
+              supplierName
             ) {
+              existingSupplier =
+                allSuppliers.find(
+                  (item) =>
+                    String(
+                      item.name || ""
+                    )
+                      .trim()
+                      .toLowerCase() ===
+                      supplierName.toLowerCase() &&
+                    String(
+                      item.phone || ""
+                    ).trim() ===
+                      supplierPhone
+                ) || null;
+            }
+
+            if (existingSupplier) {
+              const status =
+                String(
+                  existingSupplier.status ||
+                    ""
+                )
+                  .trim()
+                  .toLowerCase();
+
+              if (
+                [
+                  "inactive",
+                  "archived",
+                  "deleted",
+                ].includes(status)
+              ) {
+                throw new Error(
+                  "This supplier is inactive. Restore the supplier before using it."
+                );
+              }
+
               supplier =
                 existingSupplier;
             } else {
@@ -368,8 +366,40 @@ export async function POST(
 
                     phone:
                       supplierPhone,
+
+                    status:
+                      "Active",
                   }
                 );
+            }
+          }
+
+          /* =============================================
+             DUPLICATE SUPPLIER BILL PROTECTION
+          ============================================= */
+
+          if (supplierBillNo) {
+            const allPurchases =
+              await tx.orm.public.Purchase.all();
+
+            const duplicate =
+              allPurchases.find(
+                (purchase) =>
+                  purchase.supplierId ===
+                    supplier.id &&
+                  String(
+                    purchase.supplierBillNo ||
+                      ""
+                  )
+                    .trim()
+                    .toLowerCase() ===
+                    supplierBillNo.toLowerCase()
+              );
+
+            if (duplicate) {
+              throw new Error(
+                `Supplier bill ${supplierBillNo} is already entered as ${duplicate.purchaseNumber}. Duplicate stock was blocked.`
+              );
             }
           }
 
@@ -377,22 +407,35 @@ export async function POST(
              PREPARE PURCHASE ITEMS
           ============================================= */
 
-          const preparedItems =
-            [];
+          const preparedItems: Array<{
+            product: Awaited<
+              ReturnType<
+                typeof tx.orm.public.Product.where
+              >
+            > extends never
+              ? never
+              : any;
+            productId: number;
+            productName: string;
+            productType: string;
+            unit: string;
+            quantity: number;
+            purchasePrice: number;
+            amount: number;
+            weightEntries: string;
+          }> = [];
 
-          let subtotal =
-            0;
+          let subtotal = 0;
 
           for (
-            const rawItem of
-            rawItems
+            const rawItem of rawItems
           ) {
             const productId =
               safeNumber(
                 rawItem.productId
               );
 
-            let quantity =
+            const quantity =
               safeNumber(
                 rawItem.quantity
               );
@@ -402,11 +445,10 @@ export async function POST(
                 rawItem.purchasePrice
               );
 
-            /* ===========================================
-               VALID PRODUCT
-            =========================================== */
-
             if (
+              !Number.isInteger(
+                productId
+              ) ||
               productId <= 0
             ) {
               throw new Error(
@@ -414,34 +456,22 @@ export async function POST(
               );
             }
 
-            /* ===========================================
-               PURCHASE PRICE
-            =========================================== */
-
             if (
-              purchasePrice <=
-              0
+              purchasePrice <= 0
             ) {
               throw new Error(
                 "Purchase price must be greater than 0."
               );
             }
 
-            /* ===========================================
-               LOAD PRODUCT
-            =========================================== */
-
             const product =
               await tx.orm.public.Product
                 .where({
-                  id:
-                    productId,
+                  id: productId,
                 })
                 .first();
 
-            if (
-              !product
-            ) {
+            if (!product) {
               throw new Error(
                 `Product ID ${productId} not found.`
               );
@@ -449,55 +479,37 @@ export async function POST(
 
             const productType =
               String(
-                product.type ||
-                  ""
-              ).toLowerCase();
-
-            let weightEntries =
-              "";
+                product.type || ""
+              )
+                .trim()
+                .toLowerCase();
 
             let purchasedQuantity =
               quantity;
 
-            /* ===========================================
-               WEIGHT PRODUCT
-            =========================================== */
+            let weightEntries = "";
+
+            /* =========================================
+               WEIGHT / COTTON
+            ========================================= */
 
             if (
               productType ===
               "weight"
             ) {
-              /*
-               * Frontend can send:
-               *
-               * weightEntries:
-               * "82+115+67"
-               *
-               * OR:
-               *
-               * bundles:
-               * [82, 115, 67]
-               */
-
               const bundleValues =
                 Array.isArray(
                   rawItem.bundles
                 )
                   ? rawItem.bundles
-                      .map(
-                        (
+                      .map((weight) =>
+                        safeNumber(
                           weight
-                        ) =>
-                          safeNumber(
-                            weight
-                          )
+                        )
                       )
                       .filter(
-                        (
-                          weight
-                        ) =>
-                          weight >
-                          0
+                        (weight) =>
+                          weight > 0
                       )
                   : [];
 
@@ -508,10 +520,6 @@ export async function POST(
                   : parseWeightEntries(
                       rawItem.weightEntries
                     );
-
-              /* =========================================
-                 BUNDLE WEIGHTS PROVIDED
-              ========================================= */
 
               if (
                 suppliedWeights.length >
@@ -532,16 +540,9 @@ export async function POST(
                   suppliedWeights.join(
                     "+"
                   );
-              }
-
-              /* =========================================
-                 SINGLE WEIGHT VALUE
-              ========================================= */
-
-              else {
+              } else {
                 if (
-                  quantity <=
-                  0
+                  quantity <= 0
                 ) {
                   throw new Error(
                     "Weight purchase must contain valid KG or bundle weights."
@@ -552,9 +553,7 @@ export async function POST(
                   quantity;
 
                 weightEntries =
-                  String(
-                    quantity
-                  );
+                  String(quantity);
               }
 
               if (
@@ -567,14 +566,12 @@ export async function POST(
               }
             }
 
-            /* ===========================================
-               QUANTITY / SIZE PRODUCT
-            =========================================== */
+            /* =========================================
+               QUANTITY / SIZE
+            ========================================= */
 
             else {
-              if (
-                quantity <= 0
-              ) {
+              if (quantity <= 0) {
                 throw new Error(
                   "Purchase quantity must be greater than 0."
                 );
@@ -594,47 +591,35 @@ export async function POST(
                 quantity;
             }
 
-            /* ===========================================
-               AMOUNT
-            =========================================== */
-
             const amount =
               purchasedQuantity *
               purchasePrice;
 
-            subtotal +=
-              amount;
+            subtotal += amount;
 
-            preparedItems.push(
-              {
-                product,
-
-                productId:
-                  product.id,
-
-                productName:
-                  product.name,
-
-                productType:
-                  product.type,
-
-                unit:
-                  productType ===
-                  "weight"
-                    ? "KG"
-                    : product.unit ||
-                      "PCS",
-
-                quantity:
-                  purchasedQuantity,
-
-                purchasePrice,
-
-                amount,
-
-                weightEntries,
-              }
-            );
+            preparedItems.push({
+              product,
+              productId:
+                product.id,
+              productName:
+                product.name,
+              productType:
+                String(
+                  product.type ||
+                    "quantity"
+                ),
+              unit:
+                productType ===
+                "weight"
+                  ? "KG"
+                  : product.unit ||
+                    "PCS",
+              quantity:
+                purchasedQuantity,
+              purchasePrice,
+              amount,
+              weightEntries,
+            });
           }
 
           /* =============================================
@@ -650,20 +635,12 @@ export async function POST(
             );
           }
 
-          /* =============================================
-             BALANCE
-          ============================================= */
-
           const remainingBalance =
             Math.max(
               0,
               subtotal -
                 paidAmount
             );
-
-          /* =============================================
-             STATUS
-          ============================================= */
 
           const status =
             normalizeStatus(
@@ -699,17 +676,13 @@ export async function POST(
           }
 
           /* =============================================
-             TEMPORARY PURCHASE NUMBER
+             CREATE PURCHASE
           ============================================= */
 
           const temporaryNumber =
             `TEMP-PUR-${Date.now()}-${Math.random()
               .toString(36)
               .slice(2, 8)}`;
-
-          /* =============================================
-             CREATE PURCHASE
-          ============================================= */
 
           const purchase =
             await tx.orm.public.Purchase.create(
@@ -727,6 +700,8 @@ export async function POST(
                   supplier.phone ||
                   "",
 
+                supplierBillNo,
+
                 purchaseDate,
 
                 subtotal,
@@ -734,6 +709,8 @@ export async function POST(
                 paidAmount,
 
                 remainingBalance,
+
+                paymentMethod,
 
                 status,
 
@@ -743,10 +720,6 @@ export async function POST(
 
           /* =============================================
              FINAL PURCHASE NUMBER
-
-             PUR-0001
-             PUR-0002
-             PUR-0003
           ============================================= */
 
           const purchaseNumber =
@@ -757,35 +730,24 @@ export async function POST(
               "0"
             )}`;
 
-          const finalPurchase =
-            await tx.orm.public.Purchase
-              .where({
-                id:
-                  purchase.id,
-              })
-              .update({
-                purchaseNumber,
-              });
+          await tx.orm.public.Purchase
+            .where({
+              id: purchase.id,
+            })
+            .update({
+              purchaseNumber,
+            });
 
           /* =============================================
-             PURCHASE ITEMS
-             +
-             STOCK INCREASE
-             +
-             INVENTORY HISTORY
+             ITEMS + STOCK + INVENTORY
           ============================================= */
 
-          const createdItems =
-            [];
+          const createdItems = [];
 
           for (
             const item of
             preparedItems
           ) {
-            /* ===========================================
-               CREATE PURCHASE ITEM
-            =========================================== */
-
             const createdItem =
               await tx.orm.public.PurchaseItem.create(
                 {
@@ -826,11 +788,13 @@ export async function POST(
               String(
                 item.product.type ||
                   ""
-              ).toLowerCase();
+              )
+                .trim()
+                .toLowerCase();
 
-            /* ===========================================
-               COTTON / WEIGHT STOCK
-            =========================================== */
+            /* =========================================
+               WEIGHT STOCK
+            ========================================= */
 
             if (
               productType ===
@@ -847,15 +811,10 @@ export async function POST(
                   item.weightEntries
                 );
 
-              const newWeights =
-                [
-                  ...existingWeights,
-                  ...purchasedWeights,
-                ];
-
-              /* =========================================
-                 UPDATE PRODUCT
-              ========================================= */
+              const newWeights = [
+                ...existingWeights,
+                ...purchasedWeights,
+              ];
 
               await tx.orm.public.Product
                 .where({
@@ -863,37 +822,19 @@ export async function POST(
                     item.productId,
                 })
                 .update({
-                  /*
-                   * Cotton inventory:
-                   *
-                   * Existing:
-                   * 82+115
-                   *
-                   * Purchase:
-                   * 67+94
-                   *
-                   * New:
-                   * 82+115+67+94
-                   */
-
                   weightEntries:
                     newWeights.join(
                       "+"
                     ),
-
-                  /*
-                   * Product's latest
-                   * purchase/cost price.
-                   */
 
                   purchasePrice:
                     item.purchasePrice,
                 });
             }
 
-            /* ===========================================
-               PCS / SIZE STOCK
-            =========================================== */
+            /* =========================================
+               QUANTITY / SIZE STOCK
+            ========================================= */
 
             else {
               const currentQuantity =
@@ -915,21 +856,14 @@ export async function POST(
                   quantity:
                     newQuantity,
 
-                  /*
-                   * Latest cost price.
-                   */
-
                   purchasePrice:
                     item.purchasePrice,
                 });
             }
 
-            /* ===========================================
+            /* =========================================
                INVENTORY TRANSACTION
-
-               THIS CONNECTS:
-               PURCHASES → INVENTORY
-            =========================================== */
+            ========================================= */
 
             await tx.orm.public.InventoryTransaction.create(
               {
@@ -958,15 +892,15 @@ export async function POST(
           }
 
           /* =============================================
-             INITIAL PAYMENT
+             INITIAL SUPPLIER PAYMENT
+
+             This is payment history.
+             It does NOT change stock separately.
           ============================================= */
 
-          let payment =
-            null;
+          let payment = null;
 
-          if (
-            paidAmount > 0
-          ) {
+          if (paidAmount > 0) {
             payment =
               await tx.orm.public.PurchasePayment.create(
                 {
@@ -982,13 +916,21 @@ export async function POST(
               );
           }
 
-          /* =============================================
-             RETURN TRANSACTION DATA
-          ============================================= */
-
           return {
-            purchase:
-              finalPurchase,
+            purchaseId:
+              purchase.id,
+
+            purchaseNumber,
+
+            supplier,
+
+            subtotal,
+
+            paidAmount,
+
+            remainingBalance,
+
+            status,
 
             items:
               createdItems,
@@ -999,8 +941,24 @@ export async function POST(
       );
 
     /* =================================================
-       SUCCESS RESPONSE
+       LOAD FINAL PURCHASE
+
+       Avoid relying on Prisma update return shape.
     ================================================= */
+
+    const finalPurchase =
+      await db.orm.public.Purchase
+        .where({
+          id:
+            result.purchaseId,
+        })
+        .first();
+
+    if (!finalPurchase) {
+      throw new Error(
+        "Purchase was created but could not be reloaded."
+      );
+    }
 
     return NextResponse.json(
       {
@@ -1010,16 +968,14 @@ export async function POST(
           "Purchase saved successfully and inventory updated.",
 
         purchase: {
-          ...result.purchase,
+          ...finalPurchase,
 
           items:
             result.items,
 
           payments:
             result.payment
-              ? [
-                  result.payment,
-                ]
+              ? [result.payment]
               : [],
         },
       },
@@ -1037,9 +993,13 @@ export async function POST(
       {
         success: false,
 
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to save purchase.",
+
         message:
-          error instanceof
-            Error
+          error instanceof Error
             ? error.message
             : "Failed to save purchase.",
       },

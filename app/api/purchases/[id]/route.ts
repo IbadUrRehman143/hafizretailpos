@@ -244,6 +244,8 @@ export async function PUT(
         body.supplierId
       );
 
+    const supplierBillNo = String(body.supplierBillNo || "").trim();
+
     const paymentMethod =
       String(
         body.paymentMethod ||
@@ -462,6 +464,12 @@ export async function PUT(
             throw new Error(
               "Selected supplier not found."
             );
+          }
+
+          if (supplierBillNo) {
+            const supplierPurchases = await tx.orm.public.Purchase.where({ supplierId: supplier.id }).all();
+            const duplicate = supplierPurchases.find((p) => p.id !== purchaseId && String(p.supplierBillNo || "").trim().toLowerCase() === supplierBillNo.toLowerCase());
+            if (duplicate) throw new Error(`Supplier bill ${supplierBillNo} is already entered as ${duplicate.purchaseNumber}. Duplicate stock was blocked.`);
           }
 
           /* =========================
@@ -692,6 +700,8 @@ export async function PUT(
                   supplier.phone ||
                   "",
 
+                supplierBillNo,
+
                 purchaseDate,
 
                 subtotal,
@@ -699,6 +709,8 @@ export async function PUT(
                 paidAmount,
 
                 remainingBalance,
+
+                paymentMethod,
 
                 status,
 
@@ -840,6 +852,16 @@ export async function PUT(
                     item.purchasePrice,
                 });
             }
+
+            await tx.orm.public.InventoryTransaction.create({
+              productId: item.productId,
+              type: "PURCHASE",
+              quantity: item.quantity,
+              unit: item.unit,
+              referenceType: "PURCHASE",
+              referenceId: purchaseId,
+              note: `Purchase ${updatedPurchase.purchaseNumber} updated`,
+            });
           }
 
           /* =========================

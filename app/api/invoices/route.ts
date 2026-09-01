@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { db } from "@/src/prisma/db";
+import { createLowStockNotification, createNotification } from "@/src/lib/notifications";
+import { getBusinessSettings, normalizeInvoicePrefix } from "@/src/lib/businessSettings";
 
 /* =====================================================
    TYPES
@@ -384,6 +386,24 @@ export async function POST(
         async (
           tx
         ) => {
+          const settings =
+            await getBusinessSettings(
+              tx as any
+            );
+
+          const lowStockEnabled =
+            Boolean(
+              settings.lowStockAlert
+            );
+
+          const lowStockLimit =
+            Math.max(
+              0,
+              Number(
+                settings.lowStockLimit
+              ) || 0
+            );
+
           /* =============================================
              GROUP SOLD STOCK
           ============================================= */
@@ -651,22 +671,50 @@ export async function POST(
                 0
             );
 
-          const tax =
+          const invoiceDiscount =
             Math.max(
               0,
               Number(
-                body.tax
-              ) ||
-                0
+                body.discount
+              ) || 0
+            );
+
+          const taxableAmount =
+            Math.max(
+              0,
+              subtotal -
+                invoiceDiscount
+            );
+
+          const taxRate =
+            Boolean(
+              settings.taxEnabled
+            )
+              ? Math.min(
+                  100,
+                  Math.max(
+                    0,
+                    Number(
+                      settings.taxRate
+                    ) || 0
+                  )
+                )
+              : 0;
+
+          const tax =
+            Number(
+              (
+                taxableAmount *
+                (taxRate / 100)
+              ).toFixed(2)
             );
 
           const total =
-            Math.max(
-              0,
-              Number(
-                body.grandTotal
-              ) ||
-                0
+            Number(
+              (
+                taxableAmount +
+                tax
+              ).toFixed(2)
             );
 
           const paidAmount =
@@ -756,8 +804,13 @@ export async function POST(
              FINAL SERIAL NUMBER
           ============================================= */
 
+          const invoicePrefix =
+            normalizeInvoicePrefix(
+              settings.invoicePrefix
+            );
+
           const finalInvoiceNumber =
-            `INV-${String(
+            `${invoicePrefix}${String(
               createdInvoice.id
             ).padStart(
               4,
@@ -991,6 +1044,26 @@ export async function POST(
                   `Sale ${invoice.invoiceNumber}`,
               });
 
+              if (lowStockEnabled) {
+                const remainingWeight =
+                  calculateWeights(
+                    newWeightEntries
+                  ).totalWeight;
+
+                await createLowStockNotification(
+                  tx as any,
+                  {
+                    productName:
+                      product.name,
+                    stock:
+                      remainingWeight,
+                    unit: "KG",
+                    limit:
+                      lowStockLimit,
+                  }
+                );
+              }
+
               continue;
             }
 
@@ -1034,6 +1107,43 @@ export async function POST(
               note:
                 `Sale ${invoice.invoiceNumber}`,
             });
+
+            if (lowStockEnabled) {
+              await createLowStockNotification(
+                tx as any,
+                {
+                  productName:
+                    product.name,
+                  stock:
+                    newQuantity,
+                  unit:
+                    product.unit ||
+                    "PCS",
+                  limit:
+                    lowStockLimit,
+                }
+              );
+            }
+          }
+
+          await createNotification(
+            tx as any,
+            {
+              type: "Sale",
+              title: `Sale ${invoice.invoiceNumber}`,
+              message: `${invoice.invoiceNumber} completed for ${customerName || "Walk-in Customer"}. Total: ${Number(total.toFixed(2))}.`,
+            }
+          );
+
+          if (paidAmount > 0) {
+            await createNotification(
+              tx as any,
+              {
+                type: "Payment",
+                title: `Payment Received - ${invoice.invoiceNumber}`,
+                message: `${Number(paidAmount.toFixed(2))} received via ${String(body.paymentMethod || "Cash")} for ${invoice.invoiceNumber}.`,
+              }
+            );
           }
 
           /* =============================================

@@ -1,21 +1,18 @@
-import { NextResponse } from "next/server";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
+
 import { db } from "@/src/prisma/db";
 
-type RouteContext = {
-  params: Promise<{
-    id: string;
-  }>;
-};
-
 /* =========================================================
-   HELPER
+   HELPERS
 ========================================================= */
 
 function parseSupplierId(
   value: string
 ) {
-  const id =
-    Number(value);
+  const id = Number(value);
 
   if (
     !Number.isInteger(id) ||
@@ -27,22 +24,32 @@ function parseSupplierId(
   return id;
 }
 
+function cleanString(
+  value: unknown
+) {
+  return String(
+    value ?? ""
+  ).trim();
+}
+
 /* =========================================================
-   GET SINGLE SUPPLIER
+   GET ONE SUPPLIER
 ========================================================= */
 
 export async function GET(
-  request: Request,
-  context: RouteContext
+  _request: NextRequest,
+  context: {
+    params: Promise<{
+      id: string;
+    }>;
+  }
 ) {
   try {
     const { id: rawId } =
       await context.params;
 
     const id =
-      parseSupplierId(
-        rawId
-      );
+      parseSupplierId(rawId);
 
     if (!id) {
       return NextResponse.json(
@@ -58,11 +65,11 @@ export async function GET(
     }
 
     const supplier =
-      await db.orm.public.Supplier.where(
-        {
+      await db.orm.public.Supplier
+        .where({
           id,
-        }
-      ).first();
+        })
+        .first();
 
     if (!supplier) {
       return NextResponse.json(
@@ -77,164 +84,10 @@ export async function GET(
       );
     }
 
-    const purchases =
-      await db.orm.public.Purchase.where(
-        {
-          supplierId: id,
-        }
-      ).all();
-
-    const purchaseIds =
-      purchases.map(
-        (purchase) =>
-          Number(purchase.id)
-      );
-
-    const allItems =
-      await db.orm.public.PurchaseItem.all();
-
-    const allPayments =
-      await db.orm.public.PurchasePayment.all();
-
-    const purchaseDetails =
-      purchases
-        .map((purchase) => {
-          const items =
-            allItems.filter(
-              (item) =>
-                Number(
-                  item.purchaseId
-                ) ===
-                Number(
-                  purchase.id
-                )
-            );
-
-          const payments =
-            allPayments.filter(
-              (payment) =>
-                Number(
-                  payment.purchaseId
-                ) ===
-                Number(
-                  purchase.id
-                )
-            );
-
-          return {
-            ...purchase,
-            items,
-            payments,
-          };
-        })
-        .sort(
-          (a, b) =>
-            new Date(
-              String(
-                b.purchaseDate ||
-                  b.createdAt
-              )
-            ).getTime() -
-            new Date(
-              String(
-                a.purchaseDate ||
-                  a.createdAt
-              )
-            ).getTime()
-        );
-
-    const totalPurchases =
-      purchases.reduce(
-        (sum, purchase) =>
-          sum +
-          Number(
-            purchase.subtotal ||
-              0
-          ),
-        0
-      );
-
-    const totalPaid =
-      purchases.reduce(
-        (sum, purchase) =>
-          sum +
-          Number(
-            purchase.paidAmount ||
-              0
-          ),
-        0
-      );
-
-    const payable =
-      purchases.reduce(
-        (sum, purchase) =>
-          sum +
-          Number(
-            purchase.remainingBalance ||
-              0
-          ),
-        0
-      );
-
-    let paymentStatus:
-      | "PAID"
-      | "PARTIAL"
-      | "UNPAID" =
-      "UNPAID";
-
-    if (
-      purchases.length > 0 &&
-      payable <= 0
-    ) {
-      paymentStatus =
-        "PAID";
-    } else if (
-      totalPaid > 0
-    ) {
-      paymentStatus =
-        "PARTIAL";
-    }
-
-    const lastPurchase =
-      purchaseDetails.length >
-      0
-        ? purchaseDetails[0]
-        : null;
-
-    return NextResponse.json(
-      {
-        success: true,
-
-        supplier: {
-          ...supplier,
-
-          purchaseCount:
-            purchases.length,
-
-          totalPurchases,
-
-          totalPaid,
-
-          payable,
-
-          paymentStatus,
-
-          lastPurchase:
-            lastPurchase
-              ? String(
-                  lastPurchase.purchaseDate ||
-                    lastPurchase.createdAt
-                )
-              : null,
-
-          purchases:
-            purchaseDetails,
-        },
-      },
-      {
-        status: 200,
-      }
-    );
+    return NextResponse.json({
+      success: true,
+      supplier,
+    });
   } catch (error) {
     console.error(
       "GET SUPPLIER ERROR:",
@@ -245,9 +98,7 @@ export async function GET(
       {
         success: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "Failed to load supplier.",
+          "Failed to load supplier.",
       },
       {
         status: 500,
@@ -261,17 +112,19 @@ export async function GET(
 ========================================================= */
 
 export async function PUT(
-  request: Request,
-  context: RouteContext
+  request: NextRequest,
+  context: {
+    params: Promise<{
+      id: string;
+    }>;
+  }
 ) {
   try {
     const { id: rawId } =
       await context.params;
 
     const id =
-      parseSupplierId(
-        rawId
-      );
+      parseSupplierId(rawId);
 
     if (!id) {
       return NextResponse.json(
@@ -286,14 +139,14 @@ export async function PUT(
       );
     }
 
-    const supplier =
-      await db.orm.public.Supplier.where(
-        {
+    const current =
+      await db.orm.public.Supplier
+        .where({
           id,
-        }
-      ).first();
+        })
+        .first();
 
-    if (!supplier) {
+    if (!current) {
       return NextResponse.json(
         {
           success: false,
@@ -309,17 +162,27 @@ export async function PUT(
     const body =
       await request.json();
 
-    const name = String(
-      body.name ||
-        supplier.name ||
-        ""
-    ).trim();
+    const name =
+      cleanString(
+        body?.name ??
+          current.name
+      ).replace(
+        /\s+/g,
+        " "
+      );
 
-    const phone = String(
-      body.phone ??
-        supplier.phone ??
-        ""
-    ).trim();
+    const phone =
+      cleanString(
+        body?.phone ??
+          current.phone
+      );
+
+    const status =
+      cleanString(
+        body?.status ??
+          current.status ??
+          "Active"
+      );
 
     if (!name) {
       return NextResponse.json(
@@ -334,77 +197,27 @@ export async function PUT(
       );
     }
 
-    const suppliers =
-      await db.orm.public.Supplier.all();
-
-    const duplicate =
-      suppliers.find(
-        (item) => {
-          if (
-            Number(
-              item.id
-            ) === id
-          ) {
-            return false;
-          }
-
-          const sameName =
-            String(
-              item.name || ""
-            )
-              .trim()
-              .toLowerCase() ===
-            name.toLowerCase();
-
-          const samePhone =
-            phone !== "" &&
-            String(
-              item.phone || ""
-            ).trim() === phone;
-
-          return (
-            sameName &&
-            (samePhone ||
-              phone === "")
-          );
-        }
-      );
-
-    if (duplicate) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "Another supplier with same details already exists.",
-        },
-        {
-          status: 409,
-        }
-      );
-    }
-
-    const updatedSupplier =
-      await db.orm.public.Supplier.where(
-        {
-          id,
-        }
-      ).update({
+    await db.orm.public.Supplier
+      .where({
+        id,
+      })
+      .update({
         name,
         phone,
+        status,
       });
 
-    return NextResponse.json(
-      {
-        success: true,
-        message:
-          "Supplier updated successfully.",
-        supplier:
-          updatedSupplier,
-      },
-      {
-        status: 200,
-      }
-    );
+    const updated =
+      await db.orm.public.Supplier
+        .where({
+          id,
+        })
+        .first();
+
+    return NextResponse.json({
+      success: true,
+      supplier: updated,
+    });
   } catch (error) {
     console.error(
       "UPDATE SUPPLIER ERROR:",
@@ -415,9 +228,7 @@ export async function PUT(
       {
         success: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "Supplier update failed.",
+          "Failed to update supplier.",
       },
       {
         status: 500,
@@ -428,20 +239,36 @@ export async function PUT(
 
 /* =========================================================
    DELETE SUPPLIER
+
+   RULE:
+
+   1. Supplier has NO Purchase history
+      -> permanent delete.
+
+   2. Supplier HAS Purchase history
+      -> status = Inactive
+      -> supplier disappears from dropdown
+      -> old purchases remain safe.
 ========================================================= */
 
 export async function DELETE(
-  request: Request,
-  context: RouteContext
+  _request: NextRequest,
+  context: {
+    params: Promise<{
+      id: string;
+    }>;
+  }
 ) {
   try {
+    /* =====================================================
+       ID
+    ===================================================== */
+
     const { id: rawId } =
       await context.params;
 
     const id =
-      parseSupplierId(
-        rawId
-      );
+      parseSupplierId(rawId);
 
     if (!id) {
       return NextResponse.json(
@@ -456,12 +283,16 @@ export async function DELETE(
       );
     }
 
+    /* =====================================================
+       FIND SUPPLIER
+    ===================================================== */
+
     const supplier =
-      await db.orm.public.Supplier.where(
-        {
+      await db.orm.public.Supplier
+        .where({
           id,
-        }
-      ).first();
+        })
+        .first();
 
     if (!supplier) {
       return NextResponse.json(
@@ -476,46 +307,85 @@ export async function DELETE(
       );
     }
 
-    /*
-     * IMPORTANT:
-     *
-     * Supplier ke purchases hain to
-     * delete allow nahi karenge.
-     *
-     * Purchase history preserve rehni chahiye.
-     */
+    /* =====================================================
+       CHECK PURCHASE HISTORY
 
-    const purchase =
-      await db.orm.public.Purchase.where(
-        {
-          supplierId: id,
-        }
-      ).first();
+       Prisma 8 RC mein supplierId non-ID filter
+       avoid kar rahe hain.
 
-    if (purchase) {
+       all() + JS some()
+    ===================================================== */
+
+    const purchases =
+      await db.orm.public.Purchase.all();
+
+    const hasPurchaseHistory =
+      purchases.some(
+        (purchase) =>
+          Number(
+            purchase.supplierId
+          ) === id
+      );
+
+    /* =====================================================
+       HAS PURCHASE HISTORY
+       DO NOT HARD DELETE
+    ===================================================== */
+
+    if (
+      hasPurchaseHistory
+    ) {
+      await db.orm.public.Supplier
+        .where({
+          id,
+        })
+        .update({
+          status:
+            "Inactive",
+        });
+
       return NextResponse.json(
         {
-          success: false,
-          error:
-            "Supplier delete nahi ho sakta because is supplier ki purchase history mojood hai.",
+          success: true,
+
+          mode:
+            "deactivated",
+
+          supplierId:
+            id,
+
+          message:
+            "Supplier removed from active list. Purchase history preserved.",
         },
         {
-          status: 409,
+          status: 200,
         }
       );
     }
 
-    await db.orm.public.Supplier.where(
-      {
+    /* =====================================================
+       NO HISTORY
+       PERMANENT DELETE
+    ===================================================== */
+
+    await db.orm.public.Supplier
+      .where({
         id,
-      }
-    ).delete();
+      })
+      .delete();
 
     return NextResponse.json(
       {
         success: true,
+
+        mode:
+          "deleted",
+
+        supplierId:
+          id,
+
         message:
-          "Supplier deleted successfully.",
+          "Supplier permanently deleted.",
       },
       {
         status: 200,
@@ -530,10 +400,9 @@ export async function DELETE(
     return NextResponse.json(
       {
         success: false,
+
         error:
-          error instanceof Error
-            ? error.message
-            : "Supplier delete failed.",
+          "Failed to delete supplier.",
       },
       {
         status: 500,

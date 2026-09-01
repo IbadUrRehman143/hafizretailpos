@@ -4,56 +4,54 @@ import {
   useEffect,
   useMemo,
   useState,
+  type FormEvent,
   type ReactNode,
 } from "react";
 
-type PaymentStatus = "PAID" | "PARTIAL" | "UNPAID";
+type CustomerType =
+  | "Retail"
+  | "Wholesale"
+  | "Regular";
+
+type CustomerStatus =
+  | "Active"
+  | "Inactive";
 
 type Customer = {
   id: number;
   name: string;
   phone: string;
-
-  invoiceCount: number;
+  whatsapp: string;
+  address: string;
+  type: CustomerType;
+  openingBalance: number;
+  creditLimit: number;
+  status: CustomerStatus;
 
   totalSales: number;
-
-  initialPaid: number;
-  receivedAmount: number;
   totalPaid: number;
-
   receivable: number;
-  changeAmount: number;
+  invoiceCount: number;
 
-  lastPurchase: string | null;
-
-  paymentStatus: PaymentStatus;
+  lastPurchase?: string | null;
+  paymentStatus?: string;
 };
 
-type CustomerInvoice = {
+type CustomerPayment = {
   id: number;
+  invoiceId: number;
   invoiceNumber: string;
-
-  total: number;
-
-  initialPaid: number;
-  receivedAmount: number;
-  totalPaid: number;
-
-  remainingBalance: number;
-  changeAmount: number;
-
-  paymentMethod: string;
-  status: PaymentStatus;
-
+  method: string;
+  amount: number;
   createdAt: string;
 };
 
-type CustomerDetails = Customer & {
-  invoices: CustomerInvoice[];
-};
+type ApiRecord =
+  Record<string, unknown>;
 
-type ApiRecord = Record<string, unknown>;
+/* =========================================================
+   HELPERS
+========================================================= */
 
 function isRecord(
   value: unknown
@@ -68,7 +66,8 @@ function isRecord(
 function numberValue(
   value: unknown
 ) {
-  const number = Number(value);
+  const number =
+    Number(value);
 
   return Number.isFinite(number)
     ? number
@@ -89,98 +88,101 @@ function stringValue(
   return String(value);
 }
 
-function formatCurrency(
-  value: number
-) {
-  return `Rs. ${numberValue(
-    value
-  ).toLocaleString("en-PK", {
-    maximumFractionDigits: 2,
-  })}`;
-}
-
-function formatDate(
-  value: string | null | undefined
-) {
-  if (!value) {
-    return "-";
-  }
-
-  const date = new Date(value);
+function normalizeType(
+  value: unknown
+): CustomerType {
+  const type =
+    stringValue(value)
+      .trim()
+      .toLowerCase();
 
   if (
-    Number.isNaN(
-      date.getTime()
-    )
+    type === "wholesale"
   ) {
-    return "-";
+    return "Wholesale";
   }
 
-  return date.toLocaleDateString(
-    "en-PK",
-    {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }
-  );
+  if (
+    type === "retail"
+  ) {
+    return "Retail";
+  }
+
+  return "Regular";
 }
 
 function normalizeStatus(
   value: unknown
-): PaymentStatus {
-  const status = String(
-    value || ""
-  ).toUpperCase();
-
-  if (status === "PAID") {
-    return "PAID";
-  }
-
-  if (status === "PARTIAL") {
-    return "PARTIAL";
-  }
-
-  return "UNPAID";
+): CustomerStatus {
+  return stringValue(
+    value,
+    "Active"
+  )
+    .trim()
+    .toLowerCase() ===
+    "inactive"
+    ? "Inactive"
+    : "Active";
 }
 
 function normalizeCustomer(
   value: unknown
 ): Customer {
-  const raw = isRecord(value)
-    ? value
-    : {};
+  const raw =
+    isRecord(value)
+      ? value
+      : {};
 
   return {
-    id: numberValue(raw.id),
-
-    name: stringValue(
-      raw.name,
-      "Unknown Customer"
-    ),
-
-    phone: stringValue(
-      raw.phone
-    ),
-
-    invoiceCount:
+    id:
       numberValue(
-        raw.invoiceCount
+        raw.id
+      ),
+
+    name:
+      stringValue(
+        raw.name,
+        "Unknown Customer"
+      ),
+
+    phone:
+      stringValue(
+        raw.phone
+      ),
+
+    whatsapp:
+      stringValue(
+        raw.whatsapp
+      ),
+
+    address:
+      stringValue(
+        raw.address
+      ),
+
+    type:
+      normalizeType(
+        raw.type
+      ),
+
+    openingBalance:
+      numberValue(
+        raw.openingBalance
+      ),
+
+    creditLimit:
+      numberValue(
+        raw.creditLimit
+      ),
+
+    status:
+      normalizeStatus(
+        raw.status
       ),
 
     totalSales:
       numberValue(
         raw.totalSales
-      ),
-
-    initialPaid:
-      numberValue(
-        raw.initialPaid
-      ),
-
-    receivedAmount:
-      numberValue(
-        raw.receivedAmount
       ),
 
     totalPaid:
@@ -193,31 +195,32 @@ function normalizeCustomer(
         raw.receivable
       ),
 
-    changeAmount:
+    invoiceCount:
       numberValue(
-        raw.changeAmount
+        raw.invoiceCount
       ),
 
     lastPurchase:
       raw.lastPurchase
-        ? String(
+        ? stringValue(
             raw.lastPurchase
           )
         : null,
 
     paymentStatus:
-      normalizeStatus(
+      stringValue(
         raw.paymentStatus
       ),
   };
 }
 
-function normalizeInvoice(
+function normalizePayment(
   value: unknown
-): CustomerInvoice {
-  const raw = isRecord(value)
-    ? value
-    : {};
+): CustomerPayment {
+  const raw =
+    isRecord(value)
+      ? value
+      : {};
 
   return {
     id:
@@ -225,52 +228,25 @@ function normalizeInvoice(
         raw.id
       ),
 
+    invoiceId:
+      numberValue(
+        raw.invoiceId
+      ),
+
     invoiceNumber:
       stringValue(
-        raw.invoiceNumber,
-        "-"
+        raw.invoiceNumber
       ),
 
-    total:
-      numberValue(
-        raw.total
-      ),
-
-    initialPaid:
-      numberValue(
-        raw.initialPaid
-      ),
-
-    receivedAmount:
-      numberValue(
-        raw.receivedAmount
-      ),
-
-    totalPaid:
-      numberValue(
-        raw.totalPaid ??
-          raw.paidAmount
-      ),
-
-    remainingBalance:
-      numberValue(
-        raw.remainingBalance
-      ),
-
-    changeAmount:
-      numberValue(
-        raw.changeAmount
-      ),
-
-    paymentMethod:
+    method:
       stringValue(
-        raw.paymentMethod,
+        raw.method,
         "Cash"
       ),
 
-    status:
-      normalizeStatus(
-        raw.status
+    amount:
+      numberValue(
+        raw.amount
       ),
 
     createdAt:
@@ -304,6 +280,73 @@ async function readApi(
   }
 }
 
+function createEmptyCustomer(): Customer {
+  return {
+    id: 0,
+    name: "",
+    phone: "",
+    whatsapp: "",
+    address: "",
+    type: "Regular",
+    openingBalance: 0,
+    creditLimit: 0,
+    status: "Active",
+
+    totalSales: 0,
+    totalPaid: 0,
+    receivable: 0,
+    invoiceCount: 0,
+
+    lastPurchase: null,
+    paymentStatus: "",
+  };
+}
+
+function formatCurrency(
+  value: number
+) {
+  return `Rs. ${numberValue(
+    value
+  ).toLocaleString(
+    "en-PK",
+    {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }
+  )}`;
+}
+
+function formatDate(
+  value: string
+) {
+  if (!value) {
+    return "-";
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return value;
+  }
+
+  return date.toLocaleString(
+    "en-PK",
+    {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }
+  );
+}
+
+/* =========================================================
+   PAGE
+========================================================= */
+
 export default function CustomersPage() {
   const [
     customers,
@@ -318,10 +361,32 @@ export default function CustomersPage() {
     useState(true);
 
   const [
-    refreshing,
-    setRefreshing,
+    saving,
+    setSaving,
   ] =
     useState(false);
+
+  const [
+    deletingId,
+    setDeletingId,
+  ] =
+    useState<number | null>(
+      null
+    );
+
+  const [
+    showForm,
+    setShowForm,
+  ] =
+    useState(false);
+
+  const [
+    editingId,
+    setEditingId,
+  ] =
+    useState<number | null>(
+      null
+    );
 
   const [
     search,
@@ -330,12 +395,16 @@ export default function CustomersPage() {
     useState("");
 
   const [
+    typeFilter,
+    setTypeFilter,
+  ] =
+    useState("All");
+
+  const [
     statusFilter,
     setStatusFilter,
   ] =
-    useState<
-      "ALL" | PaymentStatus
-    >("ALL");
+    useState("All");
 
   const [
     error,
@@ -344,41 +413,71 @@ export default function CustomersPage() {
     useState("");
 
   const [
-    selectedCustomer,
-    setSelectedCustomer,
+    form,
+    setForm,
   ] =
-    useState<CustomerDetails | null>(
+    useState<Customer>(
+      createEmptyCustomer()
+    );
+
+  /* =========================================================
+     RECEIVE PAYMENT STATE
+  ========================================================= */
+
+  const [
+    paymentCustomer,
+    setPaymentCustomer,
+  ] =
+    useState<Customer | null>(
       null
     );
 
   const [
-    showHistory,
-    setShowHistory,
+    paymentAmount,
+    setPaymentAmount,
+  ] =
+    useState("");
+
+  const [
+    paymentMethod,
+    setPaymentMethod,
+  ] =
+    useState("Cash");
+
+  const [
+    paymentSaving,
+    setPaymentSaving,
   ] =
     useState(false);
 
   const [
-    historyLoading,
-    setHistoryLoading,
+    paymentHistory,
+    setPaymentHistory,
+  ] =
+    useState<CustomerPayment[]>(
+      []
+    );
+
+  const [
+    paymentHistoryLoading,
+    setPaymentHistoryLoading,
   ] =
     useState(false);
 
-  async function loadCustomers(
-    refresh = false
-  ) {
-    try {
-      if (refresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+  /* =========================================================
+     LOAD CUSTOMERS
+  ========================================================= */
 
+  async function loadCustomers() {
+    try {
+      setLoading(true);
       setError("");
 
       const response =
         await fetch(
           "/api/customers",
           {
+            method: "GET",
             cache: "no-store",
           }
         );
@@ -394,22 +493,22 @@ export default function CustomersPage() {
       ) {
         throw new Error(
           stringValue(
-            data.message ??
-              data.error,
+            data.error ??
+              data.message,
             "Failed to load customers."
           )
         );
       }
 
-      const values =
+      const rawCustomers =
         Array.isArray(
           data.customers
         )
           ? data.customers
           : [];
 
-      setCustomers(
-        values
+      const normalized =
+        rawCustomers
           .map(
             normalizeCustomer
           )
@@ -420,9 +519,17 @@ export default function CustomersPage() {
           .sort(
             (a, b) =>
               b.id - a.id
-          )
+          );
+
+      setCustomers(
+        normalized
       );
     } catch (error) {
+      console.error(
+        "Load customers:",
+        error
+      );
+
       setError(
         error instanceof Error
           ? error.message
@@ -430,7 +537,6 @@ export default function CustomersPage() {
       );
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }
 
@@ -438,69 +544,466 @@ export default function CustomersPage() {
     void loadCustomers();
   }, []);
 
-  function addWholesaleCustomer() {
-    /*
-      IMPORTANT:
+  /* =========================================================
+     FILTER
+  ========================================================= */
 
-      Customer pehle create
-      nahi hoga.
+  const filteredCustomers =
+    useMemo(() => {
+      return customers.filter(
+        (customer) => {
+          const searchText =
+            search
+              .trim()
+              .toLowerCase();
 
-      Direct Wholesale
-      Invoice open hoga.
+          const matchesSearch =
+            !searchText ||
+            customer.name
+              .toLowerCase()
+              .includes(
+                searchText
+              ) ||
+            customer.phone
+              .toLowerCase()
+              .includes(
+                searchText
+              ) ||
+            customer.whatsapp
+              .toLowerCase()
+              .includes(
+                searchText
+              ) ||
+            customer.address
+              .toLowerCase()
+              .includes(
+                searchText
+              );
 
-      Invoice save hone par
-      customer create hoga.
-    */
+          const matchesType =
+            typeFilter ===
+              "All" ||
+            customer.type ===
+              typeFilter;
 
-    window.location.href =
-      "/dashboard/invoice?saleType=WHOLESALE";
+          const matchesStatus =
+            statusFilter ===
+              "All" ||
+            customer.status ===
+              statusFilter;
+
+          return (
+            matchesSearch &&
+            matchesType &&
+            matchesStatus
+          );
+        }
+      );
+    }, [
+      customers,
+      search,
+      typeFilter,
+      statusFilter,
+    ]);
+
+  /* =========================================================
+     STATS
+  ========================================================= */
+
+  const totalCustomers =
+    customers.length;
+
+  const activeCustomers =
+    customers.filter(
+      (customer) =>
+        customer.status ===
+        "Active"
+    ).length;
+
+  const wholesaleCustomers =
+    customers.filter(
+      (customer) =>
+        customer.type ===
+        "Wholesale"
+    ).length;
+
+  const totalReceivable =
+    customers.reduce(
+      (
+        total,
+        customer
+      ) =>
+        total +
+        customer.openingBalance +
+        customer.receivable,
+      0
+    );
+
+  /* =========================================================
+     CUSTOMER FORM
+  ========================================================= */
+
+  function updateForm(
+    field: keyof Customer,
+    value: string | number
+  ) {
+    setForm(
+      (previous) => ({
+        ...previous,
+        [field]: value,
+      })
+    );
   }
 
-  function newInvoice(
-    customer: Customer
-  ) {
-    const params =
-      new URLSearchParams({
-        saleType:
-          "WHOLESALE",
+  function resetForm() {
+    setForm(
+      createEmptyCustomer()
+    );
 
-        customerId:
-          String(
-            customer.id
-          ),
-
-        customerName:
-          customer.name,
-
-        customerPhone:
-          customer.phone,
-      });
-
-    window.location.href =
-      `/dashboard/invoice?${params.toString()}`;
+    setEditingId(
+      null
+    );
   }
 
-  async function viewHistory(
+  function openAddCustomer() {
+    resetForm();
+
+    setShowForm(
+      true
+    );
+  }
+
+  function closeForm() {
+    if (saving) {
+      return;
+    }
+
+    setShowForm(
+      false
+    );
+
+    resetForm();
+  }
+
+  function editCustomer(
     customer: Customer
   ) {
-    try {
-      setSelectedCustomer({
-        ...customer,
-        invoices: [],
-      });
+    setForm({
+      ...customer,
+    });
 
-      setShowHistory(
-        true
+    setEditingId(
+      customer.id
+    );
+
+    setShowForm(
+      true
+    );
+  }
+
+  /* =========================================================
+     SAVE CUSTOMER
+  ========================================================= */
+
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (
+      !form.name.trim()
+    ) {
+      alert(
+        "Customer name is required."
       );
 
-      setHistoryLoading(
+      return;
+    }
+
+    if (
+      !form.phone.trim()
+    ) {
+      alert(
+        "Phone number is required."
+      );
+
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const url =
+        editingId !== null
+          ? `/api/customers/${editingId}`
+          : "/api/customers";
+
+      const method =
+        editingId !== null
+          ? "PUT"
+          : "POST";
+
+      const response =
+        await fetch(
+          url,
+          {
+            method,
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body:
+              JSON.stringify({
+                name:
+                  form.name.trim(),
+
+                phone:
+                  form.phone.trim(),
+
+                whatsapp:
+                  form.whatsapp.trim(),
+
+                address:
+                  form.address.trim(),
+
+                type:
+                  form.type,
+
+                openingBalance:
+                  numberValue(
+                    form.openingBalance
+                  ),
+
+                creditLimit:
+                  numberValue(
+                    form.creditLimit
+                  ),
+
+                status:
+                  form.status,
+              }),
+          }
+        );
+
+      const data =
+        await readApi(
+          response
+        );
+
+      if (
+        !response.ok ||
+        data.success === false
+      ) {
+        throw new Error(
+          stringValue(
+            data.error ??
+              data.message,
+            editingId !== null
+              ? "Unable to update customer."
+              : "Unable to save customer."
+          )
+        );
+      }
+
+      await loadCustomers();
+
+      setShowForm(
+        false
+      );
+
+      resetForm();
+
+      alert(
+        editingId !== null
+          ? "Customer updated successfully."
+          : "Customer saved successfully."
+      );
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to save customer."
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /* =========================================================
+     DELETE CUSTOMER
+  ========================================================= */
+
+  async function deleteCustomer(
+    id: number
+  ) {
+    const customer =
+      customers.find(
+        (item) =>
+          item.id === id
+      );
+
+    if (!customer) {
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        `Delete "${customer.name}"?`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingId(id);
+
+      const response =
+        await fetch(
+          `/api/customers/${id}`,
+          {
+            method:
+              "DELETE",
+          }
+        );
+
+      const data =
+        await readApi(
+          response
+        );
+
+      if (
+        !response.ok ||
+        data.success === false
+      ) {
+        throw new Error(
+          stringValue(
+            data.error ??
+              data.message,
+            "Unable to delete customer."
+          )
+        );
+      }
+
+      await loadCustomers();
+
+      alert(
+        stringValue(
+          data.message,
+          "Customer deleted successfully."
+        )
+      );
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to delete customer."
+      );
+    } finally {
+      setDeletingId(
+        null
+      );
+    }
+  }
+
+  /* =========================================================
+     BALANCE
+  ========================================================= */
+
+  function getBalance(
+    customer: Customer
+  ) {
+    return (
+      customer.openingBalance +
+      customer.receivable
+    );
+  }
+
+  /* =========================================================
+     OPEN RECEIVE PAYMENT
+  ========================================================= */
+
+  async function openReceivePayment(
+    customer: Customer
+  ) {
+    if (
+      customer.receivable <= 0
+    ) {
+      alert(
+        "This customer has no invoice receivable."
+      );
+
+      return;
+    }
+
+    setPaymentCustomer(
+      customer
+    );
+
+    setPaymentAmount(
+      ""
+    );
+
+    setPaymentMethod(
+      "Cash"
+    );
+
+    setPaymentHistory(
+      []
+    );
+
+    await loadPaymentHistory(
+      customer.id
+    );
+  }
+
+  /* =========================================================
+     CLOSE RECEIVE PAYMENT
+  ========================================================= */
+
+  function closeReceivePayment() {
+    if (
+      paymentSaving
+    ) {
+      return;
+    }
+
+    setPaymentCustomer(
+      null
+    );
+
+    setPaymentAmount(
+      ""
+    );
+
+    setPaymentMethod(
+      "Cash"
+    );
+
+    setPaymentHistory(
+      []
+    );
+  }
+
+  /* =========================================================
+     LOAD PAYMENT HISTORY
+  ========================================================= */
+
+  async function loadPaymentHistory(
+    customerId: number
+  ) {
+    try {
+      setPaymentHistoryLoading(
         true
       );
 
       const response =
         await fetch(
-          `/api/customers/${customer.id}`,
+          `/api/customers/${customerId}/payments`,
           {
+            method: "GET",
             cache: "no-store",
           }
         );
@@ -516,147 +1019,210 @@ export default function CustomersPage() {
       ) {
         throw new Error(
           stringValue(
-            data.message ??
-              data.error,
-            "Unable to load history."
+            data.error ??
+              data.message,
+            "Failed to load payment history."
           )
         );
       }
 
-      const rawCustomer =
-        isRecord(
-          data.customer
-        )
-          ? data.customer
-          : {};
-
-      const customerData =
-        normalizeCustomer(
-          rawCustomer
-        );
-
-      const invoices =
+      const rawPayments =
         Array.isArray(
-          rawCustomer.invoices
+          data.payments
         )
-          ? rawCustomer.invoices.map(
-              normalizeInvoice
-            )
+          ? data.payments
           : [];
 
-      setSelectedCustomer({
-        ...customerData,
-        invoices,
-      });
+      setPaymentHistory(
+        rawPayments
+          .map(
+            normalizePayment
+          )
+          .filter(
+            (payment) =>
+              payment.id > 0
+          )
+      );
     } catch (error) {
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Unable to load history."
+      console.error(
+        "Load customer payment history:",
+        error
       );
 
-      setShowHistory(
-        false
+      setPaymentHistory(
+        []
       );
     } finally {
-      setHistoryLoading(
+      setPaymentHistoryLoading(
         false
       );
     }
   }
 
-  const filteredCustomers =
-    useMemo(() => {
-      const text =
-        search
-          .trim()
-          .toLowerCase();
+  /* =========================================================
+     RECEIVE FULL
+  ========================================================= */
 
-      return customers.filter(
-        (customer) => {
-          const searchMatch =
-            !text ||
-            customer.name
-              .toLowerCase()
-              .includes(text) ||
-            customer.phone.includes(
-              text
-            ) ||
-            String(
-              customer.id
-            ).includes(text);
+  function fillFullPayment() {
+    if (
+      !paymentCustomer
+    ) {
+      return;
+    }
 
-          const statusMatch =
-            statusFilter ===
-              "ALL" ||
-            customer.paymentStatus ===
-              statusFilter;
+    setPaymentAmount(
+      String(
+        paymentCustomer.receivable
+      )
+    );
+  }
 
-          return (
-            searchMatch &&
-            statusMatch
-          );
-        }
+  /* =========================================================
+     SAVE CUSTOMER PAYMENT
+  ========================================================= */
+
+  async function handleReceivePayment(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (
+      !paymentCustomer
+    ) {
+      return;
+    }
+
+    const amount =
+      numberValue(
+        paymentAmount
       );
-    }, [
-      customers,
-      search,
-      statusFilter,
-    ]);
 
-  const stats =
-    useMemo(() => {
-      return {
-        customers:
-          customers.length,
+    if (
+      amount <= 0
+    ) {
+      alert(
+        "Payment amount must be greater than 0."
+      );
 
-        sales:
-          customers.reduce(
-            (sum, item) =>
-              sum +
-              item.totalSales,
-            0
-          ),
+      return;
+    }
 
-        paid:
-          customers.reduce(
-            (sum, item) =>
-              sum +
-              item.initialPaid,
-            0
-          ),
+    if (
+      amount >
+      paymentCustomer.receivable
+    ) {
+      alert(
+        `Payment cannot be greater than receivable ${formatCurrency(
+          paymentCustomer.receivable
+        )}.`
+      );
 
-        received:
-          customers.reduce(
-            (sum, item) =>
-              sum +
-              item.receivedAmount,
-            0
-          ),
+      return;
+    }
 
-        remaining:
-          customers.reduce(
-            (sum, item) =>
-              sum +
-              item.receivable,
-            0
-          ),
-      };
-    }, [customers]);
+    try {
+      setPaymentSaving(
+        true
+      );
+
+      const response =
+        await fetch(
+          `/api/customers/${paymentCustomer.id}/payments`,
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body:
+              JSON.stringify({
+                amount,
+                paymentMethod,
+              }),
+          }
+        );
+
+      const data =
+        await readApi(
+          response
+        );
+
+      if (
+        !response.ok ||
+        data.success === false
+      ) {
+        throw new Error(
+          stringValue(
+            data.error ??
+              data.message,
+            "Unable to receive payment."
+          )
+        );
+      }
+
+      await loadCustomers();
+
+      alert(
+        stringValue(
+          data.message,
+          "Customer payment received successfully."
+        )
+      );
+
+      setPaymentCustomer(
+        null
+      );
+
+      setPaymentAmount(
+        ""
+      );
+
+      setPaymentMethod(
+        "Cash"
+      );
+
+      setPaymentHistory(
+        []
+      );
+    } catch (error) {
+      console.error(
+        "Receive customer payment:",
+        error
+      );
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to receive customer payment."
+      );
+    } finally {
+      setPaymentSaving(
+        false
+      );
+    }
+  }
+
+  /* =========================================================
+     UI
+  ========================================================= */
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-6">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
+
         {/* HEADER */}
 
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">
-              Wholesale Customers
+              Customers
             </h1>
 
             <p className="mt-1 text-sm text-slate-500">
-              Only wholesale customers and their credit history.
+              Manage customers, credit,
+              receivables and payment history.
             </p>
           </div>
 
@@ -664,45 +1230,23 @@ export default function CustomersPage() {
             <button
               type="button"
               onClick={() =>
-                void loadCustomers(
-                  true
-                )
+                void loadCustomers()
               }
-              disabled={
-                refreshing
-              }
-              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
-              {refreshing
-                ? "Refreshing..."
-                : "Refresh"}
+              Refresh
             </button>
 
             <button
               type="button"
               onClick={
-                addWholesaleCustomer
+                openAddCustomer
               }
-              className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700"
+              className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
-              + Add Wholesale Customer
+              + Add Customer
             </button>
           </div>
-        </div>
-
-        {/* INFO */}
-
-        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-          <p className="font-bold text-blue-900">
-            Wholesale Flow
-          </p>
-
-          <p className="mt-1 text-sm text-blue-700">
-            Add Wholesale Customer par click karte hi Invoice Maker open
-            hoga. Customer Name + 11 digit Phone + products + payment
-            enter karein. Invoice save hote hi customer automatically
-            Customers list aur Sales mein aa jayega.
-          </p>
         </div>
 
         {error && (
@@ -713,143 +1257,156 @@ export default function CustomersPage() {
 
         {/* STATS */}
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <StatCard
-            label="Customers"
+            title="Total Customers"
             value={
-              stats.customers
+              totalCustomers
             }
           />
 
           <StatCard
-            label="Total Sales"
-            value={formatCurrency(
-              stats.sales
-            )}
-          />
-
-          <StatCard
-            label="Initial Paid"
-            value={formatCurrency(
-              stats.paid
-            )}
-          />
-
-          <StatCard
-            label="Received Later"
-            value={formatCurrency(
-              stats.received
-            )}
-          />
-
-          <StatCard
-            label="Remaining"
-            value={formatCurrency(
-              stats.remaining
-            )}
-            danger={
-              stats.remaining > 0
+            title="Active Customers"
+            value={
+              activeCustomers
             }
           />
+
+          <StatCard
+            title="Wholesale"
+            value={
+              wholesaleCustomers
+            }
+          />
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm font-medium text-slate-500">
+              Total Receivable
+            </p>
+
+            <p className="mt-2 text-xl font-bold text-red-600">
+              {formatCurrency(
+                totalReceivable
+              )}
+            </p>
+          </div>
         </div>
 
-        {/* FILTER */}
+        {/* FILTERS */}
 
-        <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_220px]">
-          <input
-            value={
-              search
-            }
-            onChange={(
-              event
-            ) =>
-              setSearch(
-                event.target.value
-              )
-            }
-            placeholder="Search name, phone or customer ID..."
-            className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500"
-          />
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="grid gap-3 md:grid-cols-[1fr_180px_180px]">
+            <div className="relative">
+              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
+                🔎
+              </span>
 
-          <select
-            value={
-              statusFilter
-            }
-            onChange={(
-              event
-            ) =>
-              setStatusFilter(
-                event.target
-                  .value as
-                  | "ALL"
-                  | PaymentStatus
-              )
-            }
-            className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
-          >
-            <option value="ALL">
-              All Status
-            </option>
+              <input
+                type="text"
+                value={search}
+                onChange={(
+                  event
+                ) =>
+                  setSearch(
+                    event.target.value
+                  )
+                }
+                placeholder="Search customer, phone or address..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm outline-none focus:border-slate-400 focus:bg-white"
+              />
+            </div>
 
-            <option value="PAID">
-              Paid
-            </option>
+            <select
+              value={
+                typeFilter
+              }
+              onChange={(
+                event
+              ) =>
+                setTypeFilter(
+                  event.target.value
+                )
+              }
+              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none"
+            >
+              <option value="All">
+                All Types
+              </option>
 
-            <option value="PARTIAL">
-              Partial
-            </option>
+              <option value="Regular">
+                Regular
+              </option>
 
-            <option value="UNPAID">
-              Unpaid
-            </option>
-          </select>
+              <option value="Retail">
+                Retail
+              </option>
+
+              <option value="Wholesale">
+                Wholesale
+              </option>
+            </select>
+
+            <select
+              value={
+                statusFilter
+              }
+              onChange={(
+                event
+              ) =>
+                setStatusFilter(
+                  event.target.value
+                )
+              }
+              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none"
+            >
+              <option value="All">
+                All Status
+              </option>
+
+              <option value="Active">
+                Active
+              </option>
+
+              <option value="Inactive">
+                Inactive
+              </option>
+            </select>
+          </div>
         </div>
 
         {/* TABLE */}
 
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1500px]">
-              <thead className="bg-slate-50">
-                <tr className="border-b border-slate-200">
+            <table className="w-full min-w-[1250px]">
+              <thead className="border-b border-slate-200 bg-slate-50">
+                <tr>
                   <TableHead>
                     Customer
                   </TableHead>
 
                   <TableHead>
-                    Phone
+                    Contact
                   </TableHead>
 
                   <TableHead>
-                    Invoices
+                    Type
                   </TableHead>
 
                   <TableHead>
-                    Total Sales
+                    Sales
                   </TableHead>
 
                   <TableHead>
-                    Initial Paid
+                    Paid
                   </TableHead>
 
                   <TableHead>
-                    Received
+                    Balance
                   </TableHead>
 
                   <TableHead>
-                    Total Paid
-                  </TableHead>
-
-                  <TableHead>
-                    Remaining
-                  </TableHead>
-
-                  <TableHead>
-                    Change
-                  </TableHead>
-
-                  <TableHead>
-                    Last Purchase
+                    Payment
                   </TableHead>
 
                   <TableHead>
@@ -862,14 +1419,12 @@ export default function CustomersPage() {
                 </tr>
               </thead>
 
-              <tbody>
+              <tbody className="divide-y divide-slate-100">
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={
-                        12
-                      }
-                      className="px-6 py-16 text-center text-sm text-slate-500"
+                      colSpan={9}
+                      className="px-6 py-12 text-center text-sm text-slate-500"
                     >
                       Loading customers...
                     </td>
@@ -878,138 +1433,206 @@ export default function CustomersPage() {
                   0 ? (
                   <tr>
                     <td
-                      colSpan={
-                        12
-                      }
-                      className="px-6 py-16 text-center text-sm text-slate-500"
+                      colSpan={9}
+                      className="px-6 py-12 text-center text-sm text-slate-500"
                     >
-                      No wholesale customers yet.
+                      No customers found.
                     </td>
                   </tr>
                 ) : (
                   filteredCustomers.map(
-                    (customer) => (
-                      <tr
-                        key={
-                          customer.id
-                        }
-                        className="border-b border-slate-100 hover:bg-slate-50"
-                      >
-                        <td className="px-5 py-4">
-                          <p className="font-bold text-slate-900">
-                            {
-                              customer.name
-                            }
-                          </p>
+                    (customer) => {
+                      const balance =
+                        getBalance(
+                          customer
+                        );
 
-                          <p className="text-xs text-slate-500">
-                            Customer #
-                            {
-                              customer.id
-                            }
-                          </p>
-                        </td>
-
-                        <td className="px-5 py-4 text-sm font-medium">
-                          {
-                            customer.phone
+                      return (
+                        <tr
+                          key={
+                            customer.id
                           }
-                        </td>
+                          className="transition hover:bg-slate-50"
+                        >
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 font-bold text-slate-700">
+                                {customer.name
+                                  .charAt(0)
+                                  .toUpperCase()}
+                              </div>
 
-                        <td className="px-5 py-4 font-bold">
-                          {
-                            customer.invoiceCount
-                          }
-                        </td>
+                              <div>
+                                <p className="font-semibold text-slate-900">
+                                  {
+                                    customer.name
+                                  }
+                                </p>
 
-                        <td className="px-5 py-4 font-bold">
-                          {formatCurrency(
-                            customer.totalSales
-                          )}
-                        </td>
+                                <p className="mt-1 max-w-[180px] truncate text-xs text-slate-500">
+                                  {customer.address ||
+                                    "No address"}
+                                </p>
 
-                        <td className="px-5 py-4 font-bold text-emerald-700">
-                          {formatCurrency(
-                            customer.initialPaid
-                          )}
-                        </td>
+                                {customer.invoiceCount >
+                                  0 && (
+                                  <p className="mt-1 text-xs text-blue-600">
+                                    {
+                                      customer.invoiceCount
+                                    }{" "}
+                                    invoice(s)
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
 
-                        <td className="px-5 py-4 font-bold text-blue-700">
-                          {formatCurrency(
-                            customer.receivedAmount
-                          )}
-                        </td>
+                          <td className="px-5 py-4">
+                            <p className="text-sm font-medium text-slate-700">
+                              {
+                                customer.phone
+                              }
+                            </p>
 
-                        <td className="px-5 py-4 font-bold text-emerald-700">
-                          {formatCurrency(
-                            customer.totalPaid
-                          )}
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <span
-                            className={
-                              customer.receivable >
-                              0
-                                ? "font-bold text-red-600"
-                                : "font-bold text-slate-600"
-                            }
-                          >
-                            {formatCurrency(
-                              customer.receivable
+                            {customer.whatsapp && (
+                              <p className="mt-1 text-xs text-green-600">
+                                WhatsApp:{" "}
+                                {
+                                  customer.whatsapp
+                                }
+                              </p>
                             )}
-                          </span>
-                        </td>
+                          </td>
 
-                        <td className="px-5 py-4 font-bold text-violet-700">
-                          {formatCurrency(
-                            customer.changeAmount
-                          )}
-                        </td>
-
-                        <td className="px-5 py-4 text-sm text-slate-500">
-                          {formatDate(
-                            customer.lastPurchase
-                          )}
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <StatusBadge
-                            status={
-                              customer.paymentStatus
-                            }
-                          />
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                newInvoice(
-                                  customer
-                                )
-                              }
-                              className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white"
+                          <td className="px-5 py-4">
+                            <span
+                              className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                                customer.type ===
+                                "Wholesale"
+                                  ? "bg-blue-50 text-blue-700"
+                                  : customer.type ===
+                                      "Retail"
+                                    ? "bg-purple-50 text-purple-700"
+                                    : "bg-slate-100 text-slate-700"
+                              }`}
                             >
-                              New Invoice
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void viewHistory(
-                                  customer
-                                )
+                              {
+                                customer.type
                               }
-                              className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700"
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-4 text-sm font-medium text-slate-700">
+                            {formatCurrency(
+                              customer.totalSales
+                            )}
+                          </td>
+
+                          <td className="px-5 py-4 text-sm font-medium text-green-600">
+                            {formatCurrency(
+                              customer.totalPaid
+                            )}
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <p
+                              className={`text-sm font-bold ${
+                                balance > 0
+                                  ? "text-red-600"
+                                  : balance < 0
+                                    ? "text-green-600"
+                                    : "text-slate-600"
+                              }`}
                             >
-                              History
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
+                              {formatCurrency(
+                                Math.abs(
+                                  balance
+                                )
+                              )}
+                            </p>
+
+                            <p className="mt-1 text-xs text-slate-400">
+                              {balance > 0
+                                ? "Receivable"
+                                : balance < 0
+                                  ? "Advance"
+                                  : "Clear"}
+                            </p>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            {customer.receivable >
+                            0 ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void openReceivePayment(
+                                    customer
+                                  )
+                                }
+                                className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700"
+                              >
+                                Receive Payment
+                              </button>
+                            ) : (
+                              <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                Fully Paid
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <span
+                              className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                                customer.status ===
+                                "Active"
+                                  ? "bg-green-50 text-green-700"
+                                  : "bg-red-50 text-red-600"
+                              }`}
+                            >
+                              {
+                                customer.status
+                              }
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  editCustomer(
+                                    customer
+                                  )
+                                }
+                                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                              >
+                                Edit
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={
+                                  deletingId ===
+                                  customer.id
+                                }
+                                onClick={() =>
+                                  void deleteCustomer(
+                                    customer.id
+                                  )
+                                }
+                                className="rounded-lg border border-red-100 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                              >
+                                {deletingId ===
+                                customer.id
+                                  ? "Deleting..."
+                                  : "Delete"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
                   )
                 )}
               </tbody>
@@ -1018,243 +1641,616 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      {/* HISTORY */}
+      {/* =====================================================
+          ADD / EDIT CUSTOMER MODAL
+      ===================================================== */}
 
-      {showHistory &&
-        selectedCustomer && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-            <div className="max-h-[92vh] w-full max-w-7xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
-              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-5">
-                <div>
-                  <h2 className="text-xl font-bold">
-                    {
-                      selectedCustomer.name
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-5">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">
+                  {editingId !==
+                  null
+                    ? "Edit Customer"
+                    : "Add Customer"}
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Enter customer
+                  information below.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={
+                  closeForm
+                }
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-lg text-slate-600"
+              >
+                ×
+              </button>
+            </div>
+
+            <form
+              onSubmit={
+                handleSubmit
+              }
+              className="space-y-6 p-6"
+            >
+              <section className="rounded-2xl border border-slate-200 p-5">
+                <h3 className="text-base font-bold text-slate-900">
+                  Customer Information
+                </h3>
+
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  <Input
+                    label="Customer Name"
+                    required
+                    value={
+                      form.name
                     }
+                    onChange={(
+                      value
+                    ) =>
+                      updateForm(
+                        "name",
+                        value
+                      )
+                    }
+                    placeholder="e.g. Muhammad Ali"
+                  />
+
+                  <Input
+                    label="Phone Number"
+                    required
+                    value={
+                      form.phone
+                    }
+                    onChange={(
+                      value
+                    ) =>
+                      updateForm(
+                        "phone",
+                        value
+                      )
+                    }
+                    placeholder="03001234567"
+                  />
+
+                  <Input
+                    label="WhatsApp Number"
+                    value={
+                      form.whatsapp
+                    }
+                    onChange={(
+                      value
+                    ) =>
+                      updateForm(
+                        "whatsapp",
+                        value
+                      )
+                    }
+                    placeholder="03001234567"
+                  />
+
+                  <Input
+                    label="Address"
+                    value={
+                      form.address
+                    }
+                    onChange={(
+                      value
+                    ) =>
+                      updateForm(
+                        "address",
+                        value
+                      )
+                    }
+                    placeholder="Customer address"
+                  />
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 p-5">
+                <h3 className="text-base font-bold text-slate-900">
+                  Customer Type
+                </h3>
+
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  <Select
+                    label="Customer Type"
+                    value={
+                      form.type
+                    }
+                    onChange={(
+                      value
+                    ) =>
+                      updateForm(
+                        "type",
+                        value as CustomerType
+                      )
+                    }
+                    options={[
+                      "Regular",
+                      "Retail",
+                      "Wholesale",
+                    ]}
+                  />
+
+                  <Select
+                    label="Status"
+                    value={
+                      form.status
+                    }
+                    onChange={(
+                      value
+                    ) =>
+                      updateForm(
+                        "status",
+                        value as CustomerStatus
+                      )
+                    }
+                    options={[
+                      "Active",
+                      "Inactive",
+                    ]}
+                  />
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-orange-200 bg-orange-50/40 p-5">
+                <h3 className="text-base font-bold text-slate-900">
+                  Credit & Balance
+                </h3>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Opening balance and
+                  credit limit for this
+                  customer.
+                </p>
+
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  <Input
+                    label="Opening Balance"
+                    type="number"
+                    value={
+                      form.openingBalance
+                    }
+                    onChange={(
+                      value
+                    ) =>
+                      updateForm(
+                        "openingBalance",
+                        numberValue(
+                          value
+                        )
+                      )
+                    }
+                    placeholder="0"
+                  />
+
+                  <Input
+                    label="Credit Limit"
+                    type="number"
+                    value={
+                      form.creditLimit
+                    }
+                    onChange={(
+                      value
+                    ) =>
+                      updateForm(
+                        "creditLimit",
+                        numberValue(
+                          value
+                        )
+                      )
+                    }
+                    placeholder="0"
+                  />
+                </div>
+              </section>
+
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  disabled={
+                    saving
+                  }
+                  onClick={
+                    closeForm
+                  }
+                  className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={
+                    saving
+                  }
+                  className="rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  {saving
+                    ? "Saving..."
+                    : editingId !==
+                        null
+                      ? "Update Customer"
+                      : "Save Customer"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================
+          RECEIVE CUSTOMER PAYMENT MODAL
+      ===================================================== */}
+
+      {paymentCustomer && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4">
+          <div className="max-h-[94vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+
+            {/* PAYMENT HEADER */}
+
+            <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-6 py-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    Receive Payment
                   </h2>
 
-                  <p className="text-sm text-slate-500">
+                  <p className="mt-1 text-sm text-slate-500">
                     {
-                      selectedCustomer.phone
+                      paymentCustomer.name
                     }
+
+                    {paymentCustomer.phone
+                      ? ` • ${paymentCustomer.phone}`
+                      : ""}
                   </p>
                 </div>
 
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      newInvoice(
-                        selectedCustomer
-                      )
-                    }
-                    className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white"
-                  >
-                    + New Invoice
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowHistory(
-                        false
-                      )
-                    }
-                    className="h-9 w-9 rounded-full bg-slate-100 font-bold"
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-6">
-                {historyLoading ? (
-                  <div className="py-16 text-center">
-                    Loading...
-                  </div>
-                ) : (
-                  <>
-                    <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
-                      <StatCard
-                        label="Invoices"
-                        value={
-                          selectedCustomer.invoiceCount
-                        }
-                      />
-
-                      <StatCard
-                        label="Sales"
-                        value={formatCurrency(
-                          selectedCustomer.totalSales
-                        )}
-                      />
-
-                      <StatCard
-                        label="Initial Paid"
-                        value={formatCurrency(
-                          selectedCustomer.initialPaid
-                        )}
-                      />
-
-                      <StatCard
-                        label="Received Later"
-                        value={formatCurrency(
-                          selectedCustomer.receivedAmount
-                        )}
-                      />
-
-                      <StatCard
-                        label="Total Paid"
-                        value={formatCurrency(
-                          selectedCustomer.totalPaid
-                        )}
-                      />
-
-                      <StatCard
-                        label="Remaining"
-                        value={formatCurrency(
-                          selectedCustomer.receivable
-                        )}
-                        danger={
-                          selectedCustomer.receivable >
-                          0
-                        }
-                      />
-                    </div>
-
-                    <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                      <table className="w-full min-w-[1250px]">
-                        <thead className="bg-slate-50">
-                          <tr>
-                            <TableHead>
-                              Invoice
-                            </TableHead>
-
-                            <TableHead>
-                              Date
-                            </TableHead>
-
-                            <TableHead>
-                              Total
-                            </TableHead>
-
-                            <TableHead>
-                              Initial Paid
-                            </TableHead>
-
-                            <TableHead>
-                              Received Later
-                            </TableHead>
-
-                            <TableHead>
-                              Total Paid
-                            </TableHead>
-
-                            <TableHead>
-                              Remaining
-                            </TableHead>
-
-                            <TableHead>
-                              Change
-                            </TableHead>
-
-                            <TableHead>
-                              Status
-                            </TableHead>
-                          </tr>
-                        </thead>
-
-                        <tbody>
-                          {selectedCustomer.invoices.length ===
-                          0 ? (
-                            <tr>
-                              <td
-                                colSpan={
-                                  9
-                                }
-                                className="p-12 text-center text-slate-500"
-                              >
-                                No wholesale invoices.
-                              </td>
-                            </tr>
-                          ) : (
-                            selectedCustomer.invoices.map(
-                              (
-                                invoice
-                              ) => (
-                                <tr
-                                  key={
-                                    invoice.id
-                                  }
-                                  className="border-t border-slate-100"
-                                >
-                                  <td className="px-5 py-4 font-bold">
-                                    {
-                                      invoice.invoiceNumber
-                                    }
-                                  </td>
-
-                                  <td className="px-5 py-4">
-                                    {formatDate(
-                                      invoice.createdAt
-                                    )}
-                                  </td>
-
-                                  <td className="px-5 py-4 font-bold">
-                                    {formatCurrency(
-                                      invoice.total
-                                    )}
-                                  </td>
-
-                                  <td className="px-5 py-4 font-bold text-emerald-700">
-                                    {formatCurrency(
-                                      invoice.initialPaid
-                                    )}
-                                  </td>
-
-                                  <td className="px-5 py-4 font-bold text-blue-700">
-                                    {formatCurrency(
-                                      invoice.receivedAmount
-                                    )}
-                                  </td>
-
-                                  <td className="px-5 py-4 font-bold text-emerald-700">
-                                    {formatCurrency(
-                                      invoice.totalPaid
-                                    )}
-                                  </td>
-
-                                  <td className="px-5 py-4 font-bold text-red-600">
-                                    {formatCurrency(
-                                      invoice.remainingBalance
-                                    )}
-                                  </td>
-
-                                  <td className="px-5 py-4 font-bold text-violet-700">
-                                    {formatCurrency(
-                                      invoice.changeAmount
-                                    )}
-                                  </td>
-
-                                  <td className="px-5 py-4">
-                                    <StatusBadge
-                                      status={
-                                        invoice.status
-                                      }
-                                    />
-                                  </td>
-                                </tr>
-                              )
-                            )
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </>
-                )}
+                <button
+                  type="button"
+                  disabled={
+                    paymentSaving
+                  }
+                  onClick={
+                    closeReceivePayment
+                  }
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-lg text-slate-600 disabled:opacity-50"
+                >
+                  ×
+                </button>
               </div>
             </div>
+
+            {/* ACCOUNT SUMMARY */}
+
+            <div className="grid grid-cols-1 gap-3 border-b border-slate-200 bg-slate-50 p-5 sm:grid-cols-3">
+              <PaymentStat
+                label="Total Sales"
+                value={
+                  formatCurrency(
+                    paymentCustomer.totalSales
+                  )
+                }
+              />
+
+              <PaymentStat
+                label="Total Paid"
+                value={
+                  formatCurrency(
+                    paymentCustomer.totalPaid
+                  )
+                }
+                valueClass="text-emerald-600"
+              />
+
+              <PaymentStat
+                label="Receivable"
+                value={
+                  formatCurrency(
+                    paymentCustomer.receivable
+                  )
+                }
+                valueClass="text-red-600"
+              />
+            </div>
+
+            <form
+              onSubmit={
+                handleReceivePayment
+              }
+              className="space-y-5 p-6"
+            >
+              {/* AMOUNT */}
+
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <label className="text-sm font-semibold text-slate-700">
+                    Payment Amount
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={
+                      fillFullPayment
+                    }
+                    className="text-xs font-bold text-emerald-600 hover:text-emerald-700"
+                  >
+                    Receive Full
+                  </button>
+                </div>
+
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  autoFocus
+                  value={
+                    paymentAmount
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setPaymentAmount(
+                      event.target.value
+                    )
+                  }
+                  placeholder="Enter received amount"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-lg font-semibold outline-none transition focus:border-slate-400"
+                />
+              </div>
+
+              {/* METHOD */}
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Payment Method
+                </label>
+
+                <select
+                  value={
+                    paymentMethod
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setPaymentMethod(
+                      event.target.value
+                    )
+                  }
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400"
+                >
+                  <option value="Cash">
+                    Cash
+                  </option>
+
+                  <option value="Bank">
+                    Bank
+                  </option>
+
+                  <option value="Credit">
+                    Credit
+                  </option>
+
+                  <option value="Other">
+                    Other
+                  </option>
+                </select>
+              </div>
+
+              {/* AFTER PAYMENT */}
+
+              {numberValue(
+                paymentAmount
+              ) > 0 && (
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                    After Payment
+                  </p>
+
+                  <div className="mt-3 flex items-center justify-between gap-4">
+                    <span className="text-sm text-slate-600">
+                      Remaining Receivable
+                    </span>
+
+                    <span className="font-bold text-slate-900">
+                      {formatCurrency(
+                        Math.max(
+                          0,
+                          paymentCustomer.receivable -
+                            numberValue(
+                              paymentAmount
+                            )
+                        )
+                      )}
+                    </span>
+                  </div>
+
+                  {numberValue(
+                    paymentAmount
+                  ) ===
+                    paymentCustomer.receivable && (
+                    <p className="mt-3 text-xs font-semibold text-emerald-700">
+                      Account will be fully
+                      paid after this payment.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* PAYMENT HISTORY */}
+
+              <div className="overflow-hidden rounded-2xl border border-slate-200">
+                <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                  <h3 className="font-bold text-slate-900">
+                    Payment History
+                  </h3>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    Payments recorded against
+                    this customer&apos;s invoices.
+                  </p>
+                </div>
+
+                {paymentHistoryLoading ? (
+                  <div className="px-4 py-8 text-center text-sm text-slate-500">
+                    Loading payment history...
+                  </div>
+                ) : paymentHistory.length ===
+                  0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-slate-500">
+                    No payment history found.
+                  </div>
+                ) : (
+                  <div className="max-h-60 overflow-y-auto">
+                    <table className="w-full min-w-[520px]">
+                      <thead className="sticky top-0 bg-white">
+                        <tr className="border-b border-slate-100">
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-400">
+                            Invoice
+                          </th>
+
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-400">
+                            Method
+                          </th>
+
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-400">
+                            Date
+                          </th>
+
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-slate-400">
+                            Amount
+                          </th>
+                        </tr>
+                      </thead>
+
+                      <tbody className="divide-y divide-slate-100">
+                        {paymentHistory.map(
+                          (payment) => (
+                            <tr
+                              key={
+                                payment.id
+                              }
+                            >
+                              <td className="px-4 py-3 text-sm font-semibold text-slate-700">
+                                {payment.invoiceNumber ||
+                                  `Invoice #${payment.invoiceId}`}
+                              </td>
+
+                              <td className="px-4 py-3 text-sm text-slate-600">
+                                {
+                                  payment.method
+                                }
+                              </td>
+
+                              <td className="px-4 py-3 text-xs text-slate-500">
+                                {formatDate(
+                                  payment.createdAt
+                                )}
+                              </td>
+
+                              <td className="px-4 py-3 text-right text-sm font-bold text-emerald-600">
+                                {formatCurrency(
+                                  payment.amount
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* BUTTONS */}
+
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  disabled={
+                    paymentSaving
+                  }
+                  onClick={
+                    closeReceivePayment
+                  }
+                  className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={
+                    paymentSaving
+                  }
+                  className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {paymentSaving
+                    ? "Recording Payment..."
+                    : "Confirm Payment"}
+                </button>
+              </div>
+            </form>
           </div>
-        )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* =========================================================
+   COMPONENTS
+========================================================= */
+
+function StatCard({
+  title,
+  value,
+}: {
+  title: string;
+  value: number;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-sm font-medium text-slate-500">
+        {title}
+      </p>
+
+      <p className="mt-2 text-2xl font-bold text-slate-900">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function PaymentStat({
+  label,
+  value,
+  valueClass = "text-slate-900",
+}: {
+  label: string;
+  value: string;
+  valueClass?: string;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-100 bg-white p-4">
+      <p className="text-xs font-medium text-slate-500">
+        {label}
+      </p>
+
+      <p
+        className={`mt-1 font-bold ${valueClass}`}
+      >
+        {value}
+      </p>
     </div>
   );
 }
@@ -1265,66 +2261,106 @@ function TableHead({
   children: ReactNode;
 }) {
   return (
-    <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
       {children}
     </th>
   );
 }
 
-function StatCard({
+function Input({
   label,
   value,
-  danger = false,
+  onChange,
+  placeholder,
+  type = "text",
+  required = false,
 }: {
   label: string;
-  value: ReactNode;
-  danger?: boolean;
+  value: string | number;
+  onChange: (
+    value: string
+  ) => void;
+  placeholder?: string;
+  type?: string;
+  required?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm text-slate-500">
+    <label className="block">
+      <span className="mb-2 block text-sm font-medium text-slate-700">
         {label}
-      </p>
 
-      <p
-        className={`mt-2 text-xl font-bold ${
-          danger
-            ? "text-red-600"
-            : "text-slate-900"
-        }`}
-      >
-        {value}
-      </p>
-    </div>
+        {required && (
+          <span className="ml-1 text-red-500">
+            *
+          </span>
+        )}
+      </span>
+
+      <input
+        required={required}
+        type={type}
+        value={value}
+        onChange={(
+          event
+        ) =>
+          onChange(
+            event.target.value
+          )
+        }
+        placeholder={
+          placeholder
+        }
+        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+      />
+    </label>
   );
 }
 
-function StatusBadge({
-  status,
+function Select({
+  label,
+  value,
+  onChange,
+  options,
 }: {
-  status: PaymentStatus;
+  label: string;
+  value: string;
+  onChange: (
+    value: string
+  ) => void;
+  options: string[];
 }) {
-  if (status === "PAID") {
-    return (
-      <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-        Paid
-      </span>
-    );
-  }
-
-  if (
-    status === "PARTIAL"
-  ) {
-    return (
-      <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
-        Partial
-      </span>
-    );
-  }
-
   return (
-    <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-600">
-      Unpaid
-    </span>
+    <label className="block">
+      <span className="mb-2 block text-sm font-medium text-slate-700">
+        {label}
+      </span>
+
+      <select
+        value={value}
+        onChange={(
+          event
+        ) =>
+          onChange(
+            event.target.value
+          )
+        }
+        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+      >
+        {options.map(
+          (option) => (
+            <option
+              key={
+                option
+              }
+              value={
+                option
+              }
+            >
+              {option}
+            </option>
+          )
+        )}
+      </select>
+    </label>
   );
 }

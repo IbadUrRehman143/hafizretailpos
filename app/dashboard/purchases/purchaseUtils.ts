@@ -96,7 +96,7 @@ export function normalizeProduct(value: unknown): Product {
   return {
     id: getNumber(raw, "id"),
     name: getString(raw, "name"),
-    category: getString(raw, "category"),
+    category: getString(raw, "categoryName", getString(raw, "category")),
     type,
     unit: type === "weight" ? "KG" : getString(raw, "unit", "PCS"),
     purchasePrice: getNumber(raw, "purchasePrice"),
@@ -167,6 +167,7 @@ export function normalizePurchase(value: unknown): Purchase {
     supplierId: getNumber(raw, "supplierId"),
     supplierName: getString(raw, "supplierName", getString(supplierRecord, "name", "Supplier")),
     supplierPhone: getString(raw, "supplierPhone", getString(supplierRecord, "phone")),
+    supplierBillNo: getString(raw, "supplierBillNo"),
     items,
     subtotal,
     paidAmount,

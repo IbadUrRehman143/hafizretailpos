@@ -2,143 +2,99 @@ import { NextResponse } from "next/server";
 import { db } from "@/src/prisma/db";
 
 /* =========================================================
-   GET ALL SUPPLIERS
+   HELPERS
+========================================================= */
+
+function cleanString(value: unknown) {
+  return String(value ?? "").trim();
+}
+
+function numberValue(value: unknown) {
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : 0;
+}
+
+function normalizeName(value: unknown) {
+  return cleanString(value)
+    .replace(/\s+/g, " ");
+}
+
+/* =========================================================
+   GET ALL ACTIVE SUPPLIERS
 ========================================================= */
 
 export async function GET() {
   try {
+    /*
+     * Prisma 8 RC:
+     * status par direct equality filter avoid kar rahe hain.
+     */
     const suppliers =
       await db.orm.public.Supplier.all();
 
-    const purchases =
-      await db.orm.public.Purchase.all();
+    const activeSuppliers = suppliers
+      .filter((supplier) => {
+        const status = cleanString(
+          supplier.status || "Active"
+        ).toLowerCase();
 
-    const result =
-      suppliers
-        .map((supplier) => {
-          const supplierPurchases =
-            purchases.filter(
-              (purchase) =>
-                Number(
-                  purchase.supplierId
-                ) ===
-                Number(
-                  supplier.id
-                )
-            );
-
-          const totalPurchases =
-            supplierPurchases.reduce(
-              (sum, purchase) =>
-                sum +
-                Number(
-                  purchase.subtotal ||
-                    0
-                ),
-              0
-            );
-
-          const totalPaid =
-            supplierPurchases.reduce(
-              (sum, purchase) =>
-                sum +
-                Number(
-                  purchase.paidAmount ||
-                    0
-                ),
-              0
-            );
-
-          const payable =
-            supplierPurchases.reduce(
-              (sum, purchase) =>
-                sum +
-                Number(
-                  purchase.remainingBalance ||
-                    0
-                ),
-              0
-            );
-
-          const lastPurchase =
-            supplierPurchases.length >
-            0
-              ? supplierPurchases
-                  .slice()
-                  .sort(
-                    (a, b) =>
-                      new Date(
-                        String(
-                          b.purchaseDate ||
-                            b.createdAt
-                        )
-                      ).getTime() -
-                      new Date(
-                        String(
-                          a.purchaseDate ||
-                            a.createdAt
-                        )
-                      ).getTime()
-                  )[0]
-              : null;
-
-          let paymentStatus:
-            | "PAID"
-            | "PARTIAL"
-            | "UNPAID" =
-            "UNPAID";
-
-          if (
-            supplierPurchases.length ===
-            0
-          ) {
-            paymentStatus =
-              "UNPAID";
-          } else if (
-            payable <= 0
-          ) {
-            paymentStatus =
-              "PAID";
-          } else if (
-            totalPaid > 0
-          ) {
-            paymentStatus =
-              "PARTIAL";
-          }
-
-          return {
-            ...supplier,
-
-            purchaseCount:
-              supplierPurchases.length,
-
-            totalPurchases,
-
-            totalPaid,
-
-            payable,
-
-            paymentStatus,
-
-            lastPurchase:
-              lastPurchase
-                ? String(
-                    lastPurchase.purchaseDate ||
-                      lastPurchase.createdAt
-                  )
-                : null,
-          };
-        })
-        .sort(
-          (a, b) =>
-            Number(b.id) -
-            Number(a.id)
-        );
+        return ![
+          "inactive",
+          "archived",
+          "deleted",
+        ].includes(status);
+      })
+      .sort(
+        (a, b) =>
+          Number(b.id) - Number(a.id)
+      );
 
     return NextResponse.json(
       {
         success: true,
-        suppliers: result,
+
+        suppliers: activeSuppliers.map(
+          (supplier) => ({
+            id: Number(supplier.id),
+
+            name: cleanString(
+              supplier.name
+            ),
+
+            phone: cleanString(
+              supplier.phone
+            ),
+
+            whatsapp: cleanString(
+              supplier.whatsapp
+            ),
+
+            email: cleanString(
+              supplier.email
+            ),
+
+            address: cleanString(
+              supplier.address
+            ),
+
+            company: cleanString(
+              supplier.company
+            ),
+
+            notes: cleanString(
+              supplier.notes
+            ),
+
+            openingBalance: numberValue(
+              supplier.openingBalance
+            ),
+
+            status: cleanString(
+              supplier.status || "Active"
+            ),
+          })
+        ),
       },
       {
         status: 200,
@@ -154,9 +110,7 @@ export async function GET() {
       {
         success: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "Failed to load suppliers.",
+          "Unable to load suppliers.",
       },
       {
         status: 500,
@@ -176,13 +130,42 @@ export async function POST(
     const body =
       await request.json();
 
-    const name = String(
-      body.name || ""
-    ).trim();
+    /* =====================================================
+       VALUES
+    ===================================================== */
 
-    const phone = String(
-      body.phone || ""
-    ).trim();
+    const name =
+      normalizeName(body?.name);
+
+    const phone =
+      cleanString(body?.phone);
+
+    const whatsapp =
+      cleanString(body?.whatsapp);
+
+    const email =
+      cleanString(body?.email);
+
+    const address =
+      cleanString(body?.address);
+
+    const company =
+      cleanString(body?.company);
+
+    const notes =
+      cleanString(body?.notes);
+
+    const openingBalance =
+      Math.max(
+        0,
+        numberValue(
+          body?.openingBalance
+        )
+      );
+
+    /* =====================================================
+       VALIDATION
+    ===================================================== */
 
     if (!name) {
       return NextResponse.json(
@@ -197,71 +180,153 @@ export async function POST(
       );
     }
 
-    const existingSuppliers =
+    /* =====================================================
+       CREATE
+
+       IMPORTANT:
+       Supplier Purchase se independent hai.
+
+       Add Supplier press hote hi DB mein save hoga.
+       Purchase save karna zaroori nahi.
+    ===================================================== */
+
+    await db.orm.public.Supplier.create({
+      name,
+      phone,
+      whatsapp,
+      email,
+      address,
+      company,
+      notes,
+      openingBalance,
+      status: "Active",
+    });
+
+    /* =====================================================
+       GET REAL DATABASE RECORD
+    ===================================================== */
+
+    const suppliers =
       await db.orm.public.Supplier.all();
 
-    const duplicate =
-      existingSuppliers.find(
-        (supplier) => {
-          const sameName =
-            String(
-              supplier.name || ""
-            )
-              .trim()
-              .toLowerCase() ===
-            name.toLowerCase();
+    const createdSupplier = [
+      ...suppliers,
+    ]
+      .sort(
+        (a, b) =>
+          Number(b.id) -
+          Number(a.id)
+      )
+      .find((supplier) => {
+        const supplierName =
+          normalizeName(
+            supplier.name
+          ).toLowerCase();
 
-          const samePhone =
-            phone !== "" &&
-            String(
-              supplier.phone || ""
-            ).trim() === phone;
-
-          return (
-            sameName &&
-            (samePhone ||
-              phone === "")
+        const supplierPhone =
+          cleanString(
+            supplier.phone
           );
-        }
-      );
 
-    if (duplicate) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "Supplier already exists.",
-        },
-        {
-          status: 409,
-        }
-      );
-    }
+        return (
+          supplierName ===
+            name.toLowerCase() &&
+          supplierPhone === phone
+        );
+      });
 
-    const supplier =
-      await db.orm.public.Supplier.create(
+    if (!createdSupplier) {
+      console.error(
+        "CREATED SUPPLIER NOT FOUND:",
         {
           name,
           phone,
         }
       );
 
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Supplier saved but database record could not be reloaded.",
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+
+    const id =
+      Number(
+        createdSupplier.id
+      );
+
+    if (
+      !Number.isInteger(id) ||
+      id <= 0
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Supplier saved but database returned invalid ID.",
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+
+    /* =====================================================
+       RETURN EXACT SUPPLIER
+
+       page.tsx expects:
+       data.supplier
+    ===================================================== */
+
     return NextResponse.json(
       {
         success: true,
-        message:
-          "Supplier created successfully.",
+
         supplier: {
-          ...supplier,
+          id,
 
-          purchaseCount: 0,
-          totalPurchases: 0,
-          totalPaid: 0,
-          payable: 0,
-          paymentStatus:
-            "UNPAID",
+          name: cleanString(
+            createdSupplier.name
+          ),
 
-          lastPurchase: null,
+          phone: cleanString(
+            createdSupplier.phone
+          ),
+
+          whatsapp: cleanString(
+            createdSupplier.whatsapp
+          ),
+
+          email: cleanString(
+            createdSupplier.email
+          ),
+
+          address: cleanString(
+            createdSupplier.address
+          ),
+
+          company: cleanString(
+            createdSupplier.company
+          ),
+
+          notes: cleanString(
+            createdSupplier.notes
+          ),
+
+          openingBalance: numberValue(
+            createdSupplier.openingBalance
+          ),
+
+          status: cleanString(
+            createdSupplier.status ||
+              "Active"
+          ),
         },
       },
       {
@@ -278,9 +343,7 @@ export async function POST(
       {
         success: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "Supplier creation failed.",
+          "Unable to create supplier.",
       },
       {
         status: 500,

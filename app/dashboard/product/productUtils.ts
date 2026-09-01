@@ -1,13 +1,33 @@
 import {
-  Product,
-  ProductType,
+  type Product,
+  type ProductType,
+  type Category,
+  type Subcategory,
 } from "./productTypes";
 
-export function calculateWeights(
-  value: string
+// ======================================================
+// NUMBER
+// ======================================================
+
+export function safeNumber(
+  value: unknown
 ) {
-  const weights = String(value || "")
-    .split("+")
+  const number = Number(value);
+
+  return Number.isFinite(number)
+    ? number
+    : 0;
+}
+
+// ======================================================
+// WEIGHT PARSER
+// ======================================================
+
+export function parseWeights(
+  value: string
+): number[] {
+  return String(value || "")
+    .split(/[+,\n\r\s]+/)
     .map((item) =>
       Number(item.trim())
     )
@@ -16,6 +36,27 @@ export function calculateWeights(
         Number.isFinite(item) &&
         item > 0
     );
+}
+
+// ======================================================
+// CLEAN WEIGHT ENTRIES
+// ======================================================
+
+export function cleanWeightEntries(
+  value: string
+) {
+  return parseWeights(value).join("+");
+}
+
+// ======================================================
+// CALCULATE WEIGHTS
+// ======================================================
+
+export function calculateWeights(
+  value: string
+) {
+  const weights =
+    parseWeights(value);
 
   const quantity =
     weights.length;
@@ -33,6 +74,34 @@ export function calculateWeights(
     totalWeight,
   };
 }
+
+// ======================================================
+// APPEND WEIGHTS
+// ======================================================
+
+export function appendWeights(
+  current: string,
+  newWeights: number[]
+) {
+  const existing =
+    parseWeights(current);
+
+  const validNew =
+    newWeights.filter(
+      (weight) =>
+        Number.isFinite(weight) &&
+        weight > 0
+    );
+
+  return [
+    ...existing,
+    ...validNew,
+  ].join("+");
+}
+
+// ======================================================
+// NORMALIZE PRODUCT
+// ======================================================
 
 export function normalizeProduct(
   value: unknown
@@ -60,6 +129,22 @@ export function normalizeProduct(
       ? rawType
       : "quantity";
 
+  const categoryId =
+    raw.categoryId === null ||
+    raw.categoryId === undefined
+      ? null
+      : Number(
+          raw.categoryId
+        ) || null;
+
+  const subcategoryId =
+    raw.subcategoryId === null ||
+    raw.subcategoryId === undefined
+      ? null
+      : Number(
+          raw.subcategoryId
+        ) || null;
+
   return {
     id:
       Number(raw.id) || 0,
@@ -69,11 +154,28 @@ export function normalizeProduct(
         raw.name || ""
       ),
 
-    category:
+    categoryId,
+
+    categoryName:
       String(
-        raw.category ||
+        raw.categoryName ||
+          raw.category ||
           "Other"
       ),
+
+    subcategoryId,
+
+    subcategoryName:
+      String(
+        raw.subcategoryName ||
+          ""
+      ),
+
+    status:
+      raw.status ===
+      "Archived"
+        ? "Archived"
+        : "Active",
 
     type,
 
@@ -86,30 +188,38 @@ export function normalizeProduct(
           ),
 
     purchasePrice:
-      Number(
-        raw.purchasePrice
-      ) || 0,
+      Math.max(
+        0,
+        safeNumber(
+          raw.purchasePrice
+        )
+      ),
 
     sellingPrice:
-      Number(
-        raw.sellingPrice
-      ) || 0,
+      Math.max(
+        0,
+        safeNumber(
+          raw.sellingPrice
+        )
+      ),
 
     quantity:
       type === "weight"
         ? 0
         : Math.max(
             0,
-            Number(
+            safeNumber(
               raw.quantity
-            ) || 0
+            )
           ),
 
     weightEntries:
       type === "weight"
-        ? String(
-            raw.weightEntries ||
-              ""
+        ? cleanWeightEntries(
+            String(
+              raw.weightEntries ||
+                ""
+            )
           )
         : "",
 
@@ -120,8 +230,7 @@ export function normalizeProduct(
 
     material:
       String(
-        raw.material ||
-          ""
+        raw.material || ""
       ),
 
     brand:
@@ -136,8 +245,7 @@ export function normalizeProduct(
 
     quality:
       String(
-        raw.quality ||
-          ""
+        raw.quality || ""
       ),
 
     color:
@@ -147,29 +255,187 @@ export function normalizeProduct(
   };
 }
 
+// ======================================================
+// NORMALIZE CATEGORY
+// ======================================================
+
+export function normalizeCategory(
+  value: unknown
+): Category | null {
+  if (
+    typeof value !== "object" ||
+    value === null
+  ) {
+    return null;
+  }
+
+  const raw =
+    value as Record<
+      string,
+      unknown
+    >;
+
+  const id =
+    Number(raw.id);
+
+  const name =
+    String(
+      raw.name || ""
+    ).trim();
+
+  if (
+    !Number.isInteger(id) ||
+    id <= 0 ||
+    !name
+  ) {
+    return null;
+  }
+
+  const rawSubcategories =
+    Array.isArray(
+      raw.subcategories
+    )
+      ? raw.subcategories
+      : [];
+
+  return {
+    id,
+
+    name,
+
+    description:
+      String(
+        raw.description ||
+          ""
+      ),
+
+    status:
+      raw.status ===
+      "Inactive"
+        ? "Inactive"
+        : "Active",
+
+    subcategories:
+      rawSubcategories
+        .map(
+          normalizeSubcategory
+        )
+        .filter(
+          (
+            item
+          ): item is Subcategory =>
+            item !== null
+        ),
+  };
+}
+
+// ======================================================
+// NORMALIZE SUBCATEGORY
+// ======================================================
+
+export function normalizeSubcategory(
+  value: unknown
+): Subcategory | null {
+  if (
+    typeof value !== "object" ||
+    value === null
+  ) {
+    return null;
+  }
+
+  const raw =
+    value as Record<
+      string,
+      unknown
+    >;
+
+  const id =
+    Number(raw.id);
+
+  const categoryId =
+    Number(
+      raw.categoryId
+    );
+
+  const name =
+    String(
+      raw.name || ""
+    ).trim();
+
+  if (
+    !Number.isInteger(id) ||
+    id <= 0 ||
+    !Number.isInteger(
+      categoryId
+    ) ||
+    categoryId <= 0 ||
+    !name
+  ) {
+    return null;
+  }
+
+  return {
+    id,
+
+    categoryId,
+
+    name,
+
+    description:
+      String(
+        raw.description ||
+          ""
+      ),
+
+    status:
+      raw.status ===
+      "Inactive"
+        ? "Inactive"
+        : "Active",
+
+    categoryName:
+      raw.categoryName
+        ? String(
+            raw.categoryName
+          )
+        : undefined,
+  };
+}
+
+// ======================================================
+// PRODUCT STOCK
+// ======================================================
+
 export function getStock(
   product: Product
 ) {
   if (
-    product.type === "weight"
+    product.type ===
+    "weight"
   ) {
     return calculateWeights(
       product.weightEntries
     ).totalWeight;
   }
 
-  return (
+  return Math.max(
+    0,
     Number(
       product.quantity
     ) || 0
   );
 }
 
+// ======================================================
+// BUNDLE COUNT
+// ======================================================
+
 export function getWeightQuantity(
   product: Product
 ) {
   if (
-    product.type !== "weight"
+    product.type !==
+    "weight"
   ) {
     return 0;
   }
@@ -179,19 +445,31 @@ export function getWeightQuantity(
   ).quantity;
 }
 
+// ======================================================
+// TYPE LABEL
+// ======================================================
+
 export function getTypeLabel(
   type: ProductType
 ) {
-  if (type === "weight") {
+  if (
+    type === "weight"
+  ) {
     return "Weight";
   }
 
-  if (type === "size") {
+  if (
+    type === "size"
+  ) {
     return "Size";
   }
 
   return "Quantity";
 }
+
+// ======================================================
+// ERROR MESSAGE
+// ======================================================
 
 export async function getErrorMessage(
   response: Response

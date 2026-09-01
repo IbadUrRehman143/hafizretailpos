@@ -8,7 +8,8 @@ type ProductType =
 
 type ProductBody = {
   name?: string;
-  category?: string;
+  categoryId?: number | null;
+  categoryName?: string;
   type?: ProductType;
   unit?: string;
   purchasePrice?: number;
@@ -21,6 +22,7 @@ type ProductBody = {
   model?: string;
   quality?: string;
   color?: string;
+  status?: string;
 };
 
 type RouteContext = {
@@ -42,9 +44,63 @@ function parseProductId(id: string) {
   return productId;
 }
 
-/* =========================================
-   GET ONE PRODUCT
-========================================= */
+async function resolveCategory(
+  body: ProductBody,
+  existing: {
+    categoryId?: number | null;
+    categoryName?: string | null;
+  }
+) {
+  const requestedId =
+    body.categoryId ??
+    existing.categoryId ??
+    null;
+
+  if (
+    requestedId &&
+    Number.isInteger(requestedId)
+  ) {
+    const category =
+      await db.orm.public.Category
+        .where({
+          id: requestedId,
+        })
+        .first();
+
+    if (!category) {
+      throw new Error(
+        "Selected category does not exist."
+      );
+    }
+
+    return category;
+  }
+
+  const name =
+    String(
+      body.categoryName ??
+        existing.categoryName ??
+        "Other"
+    ).trim() || "Other";
+
+  const categories =
+    await db.orm.public.Category.all();
+
+  const found =
+    categories.find(
+      (item) =>
+        item.name.toLowerCase() ===
+        name.toLowerCase()
+    );
+
+  if (found) return found;
+
+  return await db.orm.public.Category.create({
+    name,
+    description: "",
+    status: "Active",
+  });
+}
 
 export async function GET(
   _request: Request,
@@ -59,11 +115,10 @@ export async function GET(
     if (!productId) {
       return NextResponse.json(
         {
-          message: "Invalid product ID.",
+          message:
+            "Invalid product ID.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
@@ -77,11 +132,10 @@ export async function GET(
     if (!product) {
       return NextResponse.json(
         {
-          message: "Product not found.",
+          message:
+            "Product not found.",
         },
-        {
-          status: 404,
-        }
+        { status: 404 }
       );
     }
 
@@ -97,16 +151,10 @@ export async function GET(
         message:
           "Unable to load product.",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }
-
-/* =========================================
-   UPDATE PRODUCT
-========================================= */
 
 export async function PUT(
   request: Request,
@@ -121,11 +169,10 @@ export async function PUT(
     if (!productId) {
       return NextResponse.json(
         {
-          message: "Invalid product ID.",
+          message:
+            "Invalid product ID.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
@@ -139,11 +186,10 @@ export async function PUT(
     if (!existing) {
       return NextResponse.json(
         {
-          message: "Product not found.",
+          message:
+            "Product not found.",
         },
-        {
-          status: 404,
-        }
+        { status: 404 }
       );
     }
 
@@ -168,11 +214,15 @@ export async function PUT(
           message:
             "Product name is required.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
+
+    const category =
+      await resolveCategory(
+        body,
+        existing
+      );
 
     const updated =
       await db.orm.public.Product
@@ -181,14 +231,16 @@ export async function PUT(
         })
         .update({
           name,
-
-          category: String(
-            body.category ??
-              existing.category
-          ),
-
+          category: category.name,
+          categoryId:
+            category.id,
+          categoryName:
+            category.name,
+          status:
+            body.status === "Archived"
+              ? "Archived"
+              : "Active",
           type,
-
           unit:
             type === "weight"
               ? "KG"
@@ -197,7 +249,6 @@ export async function PUT(
                     existing.unit ??
                     "PCS"
                 ),
-
           purchasePrice:
             Math.max(
               0,
@@ -206,7 +257,6 @@ export async function PUT(
                   existing.purchasePrice
               ) || 0
             ),
-
           sellingPrice:
             Math.max(
               0,
@@ -215,75 +265,46 @@ export async function PUT(
                   existing.sellingPrice
               ) || 0
             ),
-
-          quantity:
-            type === "weight"
-              ? 0
-              : Math.max(
-                  0,
-                  Number(
-                    body.quantity ??
-                      existing.quantity
-                  ) || 0
-                ),
-
-          weightEntries:
-            type === "weight"
-              ? String(
-                  body.weightEntries ??
-                    existing.weightEntries ??
-                    ""
-                )
-              : "",
-
-          size: String(
-            body.size ??
-              existing.size ??
-              ""
-          ),
-
-          material: String(
-            body.material ??
-              existing.material ??
-              ""
-          ),
-
-          brand: String(
-            body.brand ??
-              existing.brand ??
-              ""
-          ),
-
-          model: String(
-            body.model ??
-              existing.model ??
-              ""
-          ),
-
-          quality: String(
-            body.quality ??
-              existing.quality ??
-              ""
-          ),
-
-          color: String(
-            body.color ??
-              existing.color ??
-              ""
-          ),
+          // Stock is not edited from Product Edit. Use Purchase or Inventory Adjustment.
+          quantity: type === "weight" ? 0 : Math.max(0, Number(existing.quantity) || 0),
+          weightEntries: type === "weight" ? String(existing.weightEntries || "") : "",
+          size:
+            String(
+              body.size ??
+                existing.size ??
+                ""
+            ),
+          material:
+            String(
+              body.material ??
+                existing.material ??
+                ""
+            ),
+          brand:
+            String(
+              body.brand ??
+                existing.brand ??
+                ""
+            ),
+          model:
+            String(
+              body.model ??
+                existing.model ??
+                ""
+            ),
+          quality:
+            String(
+              body.quality ??
+                existing.quality ??
+                ""
+            ),
+          color:
+            String(
+              body.color ??
+                existing.color ??
+                ""
+            ),
         });
-
-    if (!updated) {
-      return NextResponse.json(
-        {
-          message:
-            "Product update failed.",
-        },
-        {
-          status: 500,
-        }
-      );
-    }
 
     return NextResponse.json(updated);
   } catch (error) {
@@ -295,18 +316,14 @@ export async function PUT(
     return NextResponse.json(
       {
         message:
-          "Unable to update product.",
+          error instanceof Error
+            ? error.message
+            : "Unable to update product.",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }
-
-/* =========================================
-   DELETE PRODUCT
-========================================= */
 
 export async function DELETE(
   _request: Request,
@@ -321,11 +338,10 @@ export async function DELETE(
     if (!productId) {
       return NextResponse.json(
         {
-          message: "Invalid product ID.",
+          message:
+            "Invalid product ID.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
@@ -339,12 +355,63 @@ export async function DELETE(
     if (!existing) {
       return NextResponse.json(
         {
-          message: "Product not found.",
+          message:
+            "Product not found.",
         },
-        {
-          status: 404,
-        }
+        { status: 404 }
       );
+    }
+
+    const invoiceItems =
+      await db.orm.public.InvoiceItem
+        .where({
+          productId,
+        })
+        .all();
+
+    const purchaseItems =
+      await db.orm.public.PurchaseItem
+        .where({
+          productId,
+        })
+        .all();
+
+    const inventoryTransactions =
+      await db.orm.public.InventoryTransaction
+        .where({
+          productId,
+        })
+        .all();
+
+    const returnItems =
+      await db.orm.public.ReturnItem
+        .where({
+          productId,
+        })
+        .all();
+
+    const hasHistory =
+      invoiceItems.length > 0 ||
+      purchaseItems.length > 0 ||
+      inventoryTransactions.length > 0 ||
+      returnItems.length > 0;
+
+    if (hasHistory) {
+      const archived =
+        await db.orm.public.Product
+          .where({
+            id: productId,
+          })
+          .update({
+            status: "Archived",
+          });
+
+      return NextResponse.json({
+        message:
+          "Product has business history, so it was archived instead of permanently deleted.",
+        mode: "archived",
+        product: archived,
+      });
     }
 
     const deleted =
@@ -354,21 +421,10 @@ export async function DELETE(
         })
         .delete();
 
-    if (!deleted) {
-      return NextResponse.json(
-        {
-          message:
-            "Product delete failed.",
-        },
-        {
-          status: 500,
-        }
-      );
-    }
-
     return NextResponse.json({
       message:
         "Product deleted successfully.",
+      mode: "deleted",
       product: deleted,
     });
   } catch (error) {
@@ -382,9 +438,7 @@ export async function DELETE(
         message:
           "Unable to delete product.",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }

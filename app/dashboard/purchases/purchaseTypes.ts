@@ -38,6 +38,7 @@ export type Purchase = {
   supplierId: number;
   supplierName: string;
   supplierPhone?: string;
+  supplierBillNo?: string;
   items: PurchaseItem[];
   subtotal: number;
   paidAmount: number;
@@ -51,6 +52,7 @@ export type Purchase = {
 export type PurchaseForm = {
   date: string;
   supplierId: string;
+  supplierBillNo: string;
   productId: string;
   quantity: string;
   bundleWeights: string;

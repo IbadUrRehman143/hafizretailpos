@@ -1,104 +1,75 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/src/prisma/db";
 
-// ======================================================
-// GET USERS
-// ======================================================
+function validEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
 
 export async function GET() {
   try {
-    const [
-      users,
-      roles,
-      branches,
-      permissions,
-    ] = await Promise.all([
-      db.orm.public.AppUser.all(),
-      db.orm.public.Role.all(),
-      db.orm.public.Branch.all(),
-      db.orm.public.RolePermission.all(),
-    ]);
+    const [users, roles, branches, permissions] =
+      await Promise.all([
+        db.orm.public.AppUser.all(),
+        db.orm.public.Role.all(),
+        db.orm.public.Branch.all(),
+        db.orm.public.RolePermission.all(),
+      ]);
 
     const result =
-      users.map((user) => {
-        const role =
-          roles.find(
-            (item) =>
-              item.id === user.roleId
-          );
+      users
+        .map((user) => {
+          const role =
+            roles.find(
+              (item) => item.id === user.roleId
+            );
 
-        const branch =
-          branches.find(
-            (item) =>
-              item.id ===
-              user.branchId
-          );
+          const branch =
+            branches.find(
+              (item) => item.id === user.branchId
+            );
 
-        const userPermissions =
-          role
-            ? permissions
-                .filter(
-                  (permission) =>
-                    permission.roleId ===
-                    role.id
-                )
-                .map(
-                  (permission) =>
-                    permission.permission
-                )
-            : [];
+          const userPermissions =
+            role
+              ? permissions
+                  .filter(
+                    (permission) =>
+                      permission.roleId === role.id
+                  )
+                  .map(
+                    (permission) =>
+                      permission.permission
+                  )
+              : [];
 
-        return {
-          ...user,
-
-          role:
-            role?.name || "",
-
-          roleId:
-            role?.id || null,
-
-          branch:
-            branch?.name || "",
-
-          branchId:
-            branch?.id || null,
-
-          permissions:
-            userPermissions,
-
-          lastLogin:
-            user.lastLoginAt
-              ? user.lastLoginAt
-              : "Never",
-        };
-      });
+          return {
+            ...user,
+            passwordHash: undefined,
+            role: role?.name || "",
+            roleId: role?.id || null,
+            branch: branch?.name || "",
+            branchId: branch?.id || null,
+            permissions: userPermissions,
+            lastLogin:
+              user.lastLoginAt || "Never",
+          };
+        })
+        .sort((a, b) => a.id - b.id);
 
     return NextResponse.json({
       success: true,
       users: result,
     });
   } catch (error) {
-    console.error(
-      "GET /api/users error:",
-      error
-    );
-
+    console.error("GET /api/users:", error);
     return NextResponse.json(
       {
         success: false,
-        message:
-          "Failed to load users.",
+        message: "Failed to load users.",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }
-
-// ======================================================
-// CREATE USER
-// ======================================================
 
 export async function POST(
   request: NextRequest
@@ -107,71 +78,47 @@ export async function POST(
     const body = await request.json();
 
     const name =
-      String(
-        body.name || ""
-      ).trim();
+      String(body.name || "").trim();
 
     const email =
-      String(
-        body.email || ""
-      )
+      String(body.email || "")
         .trim()
         .toLowerCase();
 
     const phone =
-      String(
-        body.phone || ""
-      ).trim();
+      String(body.phone || "").trim();
 
     const status =
-      String(
-        body.status || "Active"
-      );
+      String(body.status || "Active") ===
+      "Inactive"
+        ? "Inactive"
+        : "Active";
 
-    const roleId =
-      Number(body.roleId);
+    const roleId = Number(body.roleId);
 
     const branchId =
       body.branchId
         ? Number(body.branchId)
         : null;
 
-    if (!name) {
+    if (!name || !email || !phone) {
       return NextResponse.json(
         {
           success: false,
           message:
-            "User name is required.",
+            "Name, email and phone are required.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
-    if (!email) {
+    if (!validEmail(email)) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Email is required.",
+          message: "Enter a valid email address.",
         },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    if (!phone) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Phone is required.",
-        },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
@@ -182,117 +129,103 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Please select a valid role.",
+          message: "Please select a valid role.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
     const duplicate =
       await db.orm.public.AppUser
-        .where({
-          email,
-        })
+        .where({ email })
         .first();
 
     if (duplicate) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Email already exists.",
+          message: "Email already exists.",
         },
-        {
-          status: 409,
-        }
+        { status: 409 }
       );
     }
 
     const role =
       await db.orm.public.Role
-        .where({
-          id: roleId,
-        })
+        .where({ id: roleId })
         .first();
 
     if (!role) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Selected role not found.",
+          message: "Selected role not found.",
         },
-        {
-          status: 404,
-        }
+        { status: 404 }
       );
     }
 
     if (branchId) {
       const branch =
         await db.orm.public.Branch
-          .where({
-            id: branchId,
-          })
+          .where({ id: branchId })
           .first();
 
       if (!branch) {
         return NextResponse.json(
           {
             success: false,
-            message:
-              "Selected branch not found.",
+            message: "Selected branch not found.",
           },
-          {
-            status: 404,
-          }
+          { status: 404 }
         );
       }
     }
 
     const user =
-      await db.orm.public.AppUser.create({
-        name,
-        email,
-        phone,
-        passwordHash: "",
-        status:
-          status === "Inactive"
-            ? "Inactive"
-            : "Active",
-        roleId,
-        branchId,
+      await db.transaction(async (tx) => {
+        const created =
+          await tx.orm.public.AppUser.create({
+            name,
+            email,
+            phone,
+            passwordHash: "",
+            status,
+            roleId,
+            branchId,
+          });
+
+        await tx.orm.public.AuditLog.create({
+          module: "User",
+          action: "CREATE",
+          description: `User ${name} created with role ${role.name}.`,
+          status: "Success",
+          userName: name,
+          userRole: role.name,
+        });
+
+        return created;
       });
 
     return NextResponse.json(
       {
         success: true,
-        message:
-          "User created successfully.",
-        user,
+        message: "User created successfully.",
+        user: {
+          ...user,
+          passwordHash: undefined,
+        },
       },
-      {
-        status: 201,
-      }
+      { status: 201 }
     );
   } catch (error) {
-    console.error(
-      "POST /api/users error:",
-      error
-    );
-
+    console.error("POST /api/users:", error);
     return NextResponse.json(
       {
         success: false,
-        message:
-          "Failed to create user.",
+        message: "Failed to create user.",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }

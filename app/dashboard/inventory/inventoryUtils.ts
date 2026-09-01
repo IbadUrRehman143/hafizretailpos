@@ -1,332 +1,88 @@
-import {
+import type {
   ApiProduct,
   InventoryItem,
-  ProductType,
-  StockStatus,
-  StockType,
 } from "./inventoryTypes";
 
-/* =====================================================
-   SAFE NUMBER
-===================================================== */
-
-export function safeNumber(
-  value: unknown
-) {
-  const number =
-    Number(value);
-
-  return Number.isFinite(
-    number
-  )
-    ? number
-    : 0;
+function toNumber(value: unknown) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
 }
 
-/* =====================================================
-   NORMALIZE PRODUCT TYPE
-===================================================== */
-
-export function normalizeProductType(
-  value: unknown
-): ProductType {
-  const type =
-    String(
-      value || ""
-    ).toLowerCase();
-
-  if (
-    type === "weight"
-  ) {
-    return "weight";
-  }
-
-  if (
-    type === "size"
-  ) {
-    return "size";
-  }
-
-  return "quantity";
+function cleanString(value: unknown) {
+  return String(value ?? "").trim();
 }
 
-/* =====================================================
-   WEIGHT ENTRIES
-
-   Example:
-   "87+76+98+12"
-===================================================== */
-
-export function parseWeightEntries(
-  value: unknown
-) {
-  return String(
-    value || ""
-  )
+function parseWeights(value: unknown) {
+  return cleanString(value)
     .split("+")
-    .map(
-      (item) =>
-        safeNumber(
-          item.trim()
-        )
-    )
-    .filter(
-      (item) =>
-        item > 0
-    );
+    .map((entry) => Number(entry.trim()))
+    .filter((entry) => Number.isFinite(entry) && entry > 0);
 }
 
-/* =====================================================
-   TOTAL WEIGHT STOCK
-===================================================== */
-
-export function calculateWeightStock(
-  value: unknown
-) {
-  return parseWeightEntries(
-    value
-  ).reduce(
-    (
-      total,
-      weight
-    ) =>
-      total +
-      weight,
-    0
-  );
+export function formatCurrency(value: number) {
+  return `Rs. ${Number(value || 0).toLocaleString("en-PK", {
+    maximumFractionDigits: 2,
+  })}`;
 }
-
-/* =====================================================
-   FORMAT WEIGHT ENTRIES
-===================================================== */
-
-export function formatWeightEntries(
-  entries: number[]
-) {
-  return entries
-    .filter(
-      (entry) =>
-        entry > 0
-    )
-    .map(
-      (entry) =>
-        Number(
-          entry.toFixed(
-            2
-          )
-        )
-    )
-    .join("+");
-}
-
-/* =====================================================
-   REMOVE WEIGHT FIFO
-
-   Example:
-
-   Current:
-   80 + 60 + 50
-
-   Remove:
-   100
-
-   Result:
-   40 + 50
-===================================================== */
-
-export function removeWeightFIFO(
-  currentEntries: number[],
-  amountToRemove: number
-) {
-  let remaining =
-    amountToRemove;
-
-  const updatedEntries =
-    [...currentEntries];
-
-  while (
-    remaining > 0 &&
-    updatedEntries.length >
-      0
-  ) {
-    const firstWeight =
-      updatedEntries[0];
-
-    if (
-      firstWeight <=
-      remaining
-    ) {
-      remaining -=
-        firstWeight;
-
-      updatedEntries.shift();
-    } else {
-      updatedEntries[0] =
-        firstWeight -
-        remaining;
-
-      remaining = 0;
-    }
-  }
-
-  return updatedEntries;
-}
-
-/* =====================================================
-   INVENTORY NORMALIZER
-===================================================== */
 
 export function normalizeInventoryItem(
   product: ApiProduct
 ): InventoryItem {
-  const productType =
-    normalizeProductType(
-      product.type
-    );
+  const raw = product as unknown as Record<string, unknown>;
 
-  const isWeight =
-    productType ===
-    "weight";
+  const productType =
+    raw.type === "weight" ||
+    raw.type === "size" ||
+    raw.type === "quantity"
+      ? String(raw.type)
+      : "quantity";
+
+  const weights =
+    productType === "weight"
+      ? parseWeights(raw.weightEntries)
+      : [];
 
   const stock =
-    isWeight
-      ? calculateWeightStock(
-          product.weightEntries
-        )
-      : Math.max(
-          0,
-          safeNumber(
-            product.quantity
-          )
-        );
+    productType === "weight"
+      ? weights.reduce((total, weight) => total + weight, 0)
+      : Math.max(0, toNumber(raw.quantity));
 
-  const type: StockType =
-    productType ===
-    "weight"
-      ? "Weight"
-      : productType ===
-          "size"
-        ? "Size"
-        : "Quantity";
-
-  /*
-    Business Low Stock Rules
-
-    Weight products:
-    <= 100 KG
-
-    Quantity / Size:
-    <= 5 PCS
-  */
-
-  const lowStockLimit =
-    isWeight
-      ? 100
-      : 5;
-
-  return {
-    id:
-      Number(
-        product.id
-      ),
-
-    name:
-      String(
-        product.name ||
-          "Unnamed Product"
-      ),
-
+  const item = {
+    id: toNumber(raw.id),
+    name: cleanString(raw.name) || "Unnamed Product",
     sku:
-      `PRD-${String(
-        product.id
-      ).padStart(
-        4,
-        "0"
-      )}`,
-
+      cleanString(raw.sku) ||
+      (toNumber(raw.id) > 0
+        ? `PRD-${String(toNumber(raw.id)).padStart(4, "0")}`
+        : ""),
     category:
-      String(
-        product.category ||
-          "Other"
-      ),
-
+      cleanString(raw.categoryName) ||
+      cleanString(raw.category) ||
+      "Other",
     productType,
-
-    type,
-
-    stock,
-
     unit:
-      isWeight
+      productType === "weight"
         ? "KG"
-        : "PCS",
-
-    lowStockLimit,
-
-    purchasePrice:
-      Math.max(
-        0,
-        safeNumber(
-          product.purchasePrice
-        )
-      ),
-
-    sellingPrice:
-      Math.max(
-        0,
-        safeNumber(
-          product.sellingPrice
-        )
-      ),
-
+        : cleanString(raw.unit) || "PCS",
+    stock,
+    purchasePrice: Math.max(0, toNumber(raw.purchasePrice)),
+    sellingPrice: Math.max(0, toNumber(raw.sellingPrice)),
     weightEntries:
-      String(
-        product.weightEntries ||
-          ""
-      ),
-
-    originalProduct:
-      product,
+      productType === "weight"
+        ? cleanString(raw.weightEntries)
+        : "",
+    status: cleanString(raw.status) || "Active",
   };
-}
 
-/* =====================================================
-   STOCK STATUS
-===================================================== */
+  return item as InventoryItem;
+}
 
 export function getStockStatus(
   item: InventoryItem
-): StockStatus {
-  if (
-    item.stock <= 0
-  ) {
-    return "Out of Stock";
-  }
+): "In Stock" | "Low Stock" | "Out of Stock" {
+  const stock = Number(item.stock) || 0;
 
-  if (
-    item.stock <=
-    item.lowStockLimit
-  ) {
-    return "Low Stock";
-  }
-
+  if (stock <= 0) return "Out of Stock";
+  if (stock <= 5) return "Low Stock";
   return "In Stock";
-}
-
-/* =====================================================
-   CURRENCY
-===================================================== */
-
-export function formatCurrency(
-  value: number
-) {
-  return `Rs. ${Number(
-    value || 0
-  ).toLocaleString(
-    "en-PK",
-    {
-      maximumFractionDigits:
-        2,
-    }
-  )}`;
 }

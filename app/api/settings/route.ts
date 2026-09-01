@@ -1,54 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/src/prisma/db";
+import {
+  getBusinessSettings,
+  normalizeInvoicePrefix,
+} from "@/src/lib/businessSettings";
 
-function getString(value: unknown, fallback = "") {
-  return typeof value === "string" ? value.trim() : fallback;
+function getString(
+  value: unknown,
+  fallback = ""
+) {
+  return typeof value === "string"
+    ? value.trim()
+    : fallback;
 }
 
-function getBoolean(value: unknown, fallback = false) {
-  return typeof value === "boolean" ? value : fallback;
+function getBoolean(
+  value: unknown,
+  fallback = false
+) {
+  return typeof value === "boolean"
+    ? value
+    : fallback;
 }
 
-function getNumber(value: unknown, fallback = 0) {
+function getNumber(
+  value: unknown,
+  fallback = 0
+) {
   const number = Number(value);
-
   return Number.isFinite(number)
     ? number
     : fallback;
 }
 
-async function getOrCreateSettings() {
-  const settings =
-    await db.orm.public.Setting.all();
-
-  if (settings.length > 0) {
-    return settings[0];
-  }
-
-  return await db.orm.public.Setting.create({
-    businessName: "Hafiz Retail POS",
-    phone: "",
-    email: "",
-    address: "",
-    currency: "PKR",
-    invoicePrefix: "INV-",
-    taxEnabled: false,
-    taxRate: 0,
-    lowStockAlert: true,
-    lowStockLimit: 5,
-    whatsappEnabled: false,
-    autoPrint: false,
-  });
-}
-
-// ======================================================
-// GET SETTINGS
-// ======================================================
-
 export async function GET() {
   try {
     const settings =
-      await getOrCreateSettings();
+      await getBusinessSettings();
 
     return NextResponse.json({
       success: true,
@@ -56,26 +44,19 @@ export async function GET() {
     });
   } catch (error) {
     console.error(
-      "GET /api/settings error:",
+      "GET /api/settings:",
       error
     );
 
     return NextResponse.json(
       {
         success: false,
-        message:
-          "Failed to load settings.",
+        message: "Failed to load settings.",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }
-
-// ======================================================
-// UPDATE SETTINGS
-// ======================================================
 
 export async function PUT(
   request: NextRequest
@@ -84,7 +65,7 @@ export async function PUT(
     const body = await request.json();
 
     const current =
-      await getOrCreateSettings();
+      await getBusinessSettings();
 
     const businessName =
       getString(body.businessName);
@@ -98,29 +79,27 @@ export async function PUT(
     const address =
       getString(body.address);
 
+    const currencyRaw =
+      getString(body.currency, "PKR")
+        .toUpperCase();
+
     const currency =
-      getString(
-        body.currency,
-        "PKR"
-      );
+      ["PKR", "SAR", "USD"].includes(
+        currencyRaw
+      )
+        ? currencyRaw
+        : "PKR";
 
     const invoicePrefix =
-      getString(
-        body.invoicePrefix,
-        "INV-"
+      normalizeInvoicePrefix(
+        body.invoicePrefix
       );
 
     const taxEnabled =
-      getBoolean(
-        body.taxEnabled,
-        false
-      );
+      getBoolean(body.taxEnabled, false);
 
     const taxRate =
-      getNumber(
-        body.taxRate,
-        0
-      );
+      getNumber(body.taxRate, 0);
 
     const lowStockAlert =
       getBoolean(
@@ -150,38 +129,20 @@ export async function PUT(
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Business name is required.",
+          message: "Business name is required.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
-    if (!invoicePrefix) {
+    if (taxRate < 0 || taxRate > 100) {
       return NextResponse.json(
         {
           success: false,
           message:
-            "Invoice prefix is required.",
+            "Tax rate must be between 0 and 100.",
         },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    if (taxRate < 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Tax rate cannot be negative.",
-        },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
@@ -192,53 +153,58 @@ export async function PUT(
           message:
             "Low stock limit cannot be negative.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
     const settings =
-      await db.orm.public.Setting
-        .where({
-          id: current.id,
-        })
-        .update({
-          businessName,
-          phone,
-          email,
-          address,
-          currency,
-          invoicePrefix,
-          taxEnabled,
-          taxRate,
-          lowStockAlert,
-          lowStockLimit,
-          whatsappEnabled,
-          autoPrint,
+      await db.transaction(async (tx) => {
+        const updated =
+          await tx.orm.public.Setting
+            .where({ id: current.id })
+            .update({
+              businessName,
+              phone,
+              email,
+              address,
+              currency,
+              invoicePrefix,
+              taxEnabled,
+              taxRate,
+              lowStockAlert,
+              lowStockLimit,
+              whatsappEnabled,
+              autoPrint,
+            });
+
+        await tx.orm.public.AuditLog.create({
+          module: "Settings",
+          action: "UPDATE",
+          description:
+            "Application settings updated.",
+          status: "Success",
         });
+
+        return updated;
+      });
 
     return NextResponse.json({
       success: true,
-      message:
-        "Settings updated successfully.",
+      message: "Settings updated successfully.",
       settings,
     });
   } catch (error) {
     console.error(
-      "PUT /api/settings error:",
+      "PUT /api/settings:",
       error
     );
 
     return NextResponse.json(
       {
         success: false,
-        message:
-          "Failed to update settings.",
+        message: "Failed to update settings.",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }

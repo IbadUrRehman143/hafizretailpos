@@ -1,410 +1,855 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
-type CustomerType = "Retail" | "Wholesale" | "Regular";
-type CustomerStatus = "Active" | "Inactive";
+type PaymentStatus = "PAID" | "PARTIAL" | "UNPAID";
 
 type Customer = {
   id: number;
   name: string;
   phone: string;
-  whatsapp: string;
-  address: string;
-  type: CustomerType;
-  openingBalance: number;
-  creditLimit: number;
-  status: CustomerStatus;
+
+  invoiceCount: number;
+
   totalSales: number;
+
+  initialPaid: number;
+  receivedAmount: number;
   totalPaid: number;
+
+  receivable: number;
+  changeAmount: number;
+
+  lastPurchase: string | null;
+
+  paymentStatus: PaymentStatus;
 };
 
-const initialCustomers: Customer[] = [
-  {
-    id: 1,
-    name: "Muhammad Ali",
-    phone: "03001234567",
-    whatsapp: "03001234567",
-    address: "Main Bazar",
-    type: "Regular",
-    openingBalance: 5000,
-    creditLimit: 20000,
-    status: "Active",
-    totalSales: 45000,
-    totalPaid: 40000,
-  },
-  {
-    id: 2,
-    name: "Khan Electronics",
-    phone: "03111234567",
-    whatsapp: "03111234567",
-    address: "Sadar Bazar",
-    type: "Wholesale",
-    openingBalance: 10000,
-    creditLimit: 50000,
-    status: "Active",
-    totalSales: 120000,
-    totalPaid: 100000,
-  },
-  {
-    id: 3,
-    name: "Ahmad Khan",
-    phone: "03221234567",
-    whatsapp: "03221234567",
-    address: "High School Road",
-    type: "Retail",
-    openingBalance: 0,
-    creditLimit: 10000,
-    status: "Inactive",
-    totalSales: 15000,
-    totalPaid: 15000,
-  },
-];
+type CustomerInvoice = {
+  id: number;
+  invoiceNumber: string;
+
+  total: number;
+
+  initialPaid: number;
+  receivedAmount: number;
+  totalPaid: number;
+
+  remainingBalance: number;
+  changeAmount: number;
+
+  paymentMethod: string;
+  status: PaymentStatus;
+
+  createdAt: string;
+};
+
+type CustomerDetails = Customer & {
+  invoices: CustomerInvoice[];
+};
+
+type ApiRecord = Record<string, unknown>;
+
+function isRecord(
+  value: unknown
+): value is ApiRecord {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value)
+  );
+}
+
+function numberValue(
+  value: unknown
+) {
+  const number = Number(value);
+
+  return Number.isFinite(number)
+    ? number
+    : 0;
+}
+
+function stringValue(
+  value: unknown,
+  fallback = ""
+) {
+  if (
+    value === undefined ||
+    value === null
+  ) {
+    return fallback;
+  }
+
+  return String(value);
+}
+
+function formatCurrency(
+  value: number
+) {
+  return `Rs. ${numberValue(
+    value
+  ).toLocaleString("en-PK", {
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function formatDate(
+  value: string | null | undefined
+) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "-";
+  }
+
+  return date.toLocaleDateString(
+    "en-PK",
+    {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }
+  );
+}
+
+function normalizeStatus(
+  value: unknown
+): PaymentStatus {
+  const status = String(
+    value || ""
+  ).toUpperCase();
+
+  if (status === "PAID") {
+    return "PAID";
+  }
+
+  if (status === "PARTIAL") {
+    return "PARTIAL";
+  }
+
+  return "UNPAID";
+}
+
+function normalizeCustomer(
+  value: unknown
+): Customer {
+  const raw = isRecord(value)
+    ? value
+    : {};
+
+  return {
+    id: numberValue(raw.id),
+
+    name: stringValue(
+      raw.name,
+      "Unknown Customer"
+    ),
+
+    phone: stringValue(
+      raw.phone
+    ),
+
+    invoiceCount:
+      numberValue(
+        raw.invoiceCount
+      ),
+
+    totalSales:
+      numberValue(
+        raw.totalSales
+      ),
+
+    initialPaid:
+      numberValue(
+        raw.initialPaid
+      ),
+
+    receivedAmount:
+      numberValue(
+        raw.receivedAmount
+      ),
+
+    totalPaid:
+      numberValue(
+        raw.totalPaid
+      ),
+
+    receivable:
+      numberValue(
+        raw.receivable
+      ),
+
+    changeAmount:
+      numberValue(
+        raw.changeAmount
+      ),
+
+    lastPurchase:
+      raw.lastPurchase
+        ? String(
+            raw.lastPurchase
+          )
+        : null,
+
+    paymentStatus:
+      normalizeStatus(
+        raw.paymentStatus
+      ),
+  };
+}
+
+function normalizeInvoice(
+  value: unknown
+): CustomerInvoice {
+  const raw = isRecord(value)
+    ? value
+    : {};
+
+  return {
+    id:
+      numberValue(
+        raw.id
+      ),
+
+    invoiceNumber:
+      stringValue(
+        raw.invoiceNumber,
+        "-"
+      ),
+
+    total:
+      numberValue(
+        raw.total
+      ),
+
+    initialPaid:
+      numberValue(
+        raw.initialPaid
+      ),
+
+    receivedAmount:
+      numberValue(
+        raw.receivedAmount
+      ),
+
+    totalPaid:
+      numberValue(
+        raw.totalPaid ??
+          raw.paidAmount
+      ),
+
+    remainingBalance:
+      numberValue(
+        raw.remainingBalance
+      ),
+
+    changeAmount:
+      numberValue(
+        raw.changeAmount
+      ),
+
+    paymentMethod:
+      stringValue(
+        raw.paymentMethod,
+        "Cash"
+      ),
+
+    status:
+      normalizeStatus(
+        raw.status
+      ),
+
+    createdAt:
+      stringValue(
+        raw.createdAt
+      ),
+  };
+}
+
+async function readApi(
+  response: Response
+): Promise<ApiRecord> {
+  const text =
+    await response.text();
+
+  if (!text) {
+    return {};
+  }
+
+  try {
+    const parsed: unknown =
+      JSON.parse(text);
+
+    return isRecord(parsed)
+      ? parsed
+      : {};
+  } catch {
+    throw new Error(
+      `Invalid server response (${response.status}).`
+    );
+  }
+}
 
 export default function CustomersPage() {
-  const [customers, setCustomers] =
-    useState<Customer[]>(initialCustomers);
+  const [
+    customers,
+    setCustomers,
+  ] =
+    useState<Customer[]>([]);
 
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(true);
 
-  const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("All");
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [
+    refreshing,
+    setRefreshing,
+  ] =
+    useState(false);
 
-  const [form, setForm] = useState<Customer>({
-    id: 0,
-    name: "",
-    phone: "",
-    whatsapp: "",
-    address: "",
-    type: "Regular",
-    openingBalance: 0,
-    creditLimit: 0,
-    status: "Active",
-    totalSales: 0,
-    totalPaid: 0,
-  });
+  const [
+    search,
+    setSearch,
+  ] =
+    useState("");
 
-  const filteredCustomers = useMemo(() => {
-    return customers.filter((customer) => {
-      const searchText = search.toLowerCase();
+  const [
+    statusFilter,
+    setStatusFilter,
+  ] =
+    useState<
+      "ALL" | PaymentStatus
+    >("ALL");
 
-      const matchesSearch =
-        customer.name.toLowerCase().includes(searchText) ||
-        customer.phone.includes(search) ||
-        customer.whatsapp.includes(search) ||
-        customer.address.toLowerCase().includes(searchText);
+  const [
+    error,
+    setError,
+  ] =
+    useState("");
 
-      const matchesType =
-        typeFilter === "All" ||
-        customer.type === typeFilter;
+  const [
+    selectedCustomer,
+    setSelectedCustomer,
+  ] =
+    useState<CustomerDetails | null>(
+      null
+    );
 
-      const matchesStatus =
-        statusFilter === "All" ||
-        customer.status === statusFilter;
+  const [
+    showHistory,
+    setShowHistory,
+  ] =
+    useState(false);
 
-      return (
-        matchesSearch &&
-        matchesType &&
-        matchesStatus
-      );
-    });
-  }, [customers, search, typeFilter, statusFilter]);
+  const [
+    historyLoading,
+    setHistoryLoading,
+  ] =
+    useState(false);
 
-  const totalCustomers = customers.length;
-
-  const activeCustomers = customers.filter(
-    (customer) => customer.status === "Active"
-  ).length;
-
-  const wholesaleCustomers = customers.filter(
-    (customer) => customer.type === "Wholesale"
-  ).length;
-
-  const totalReceivable = customers.reduce(
-    (total, customer) =>
-      total +
-      customer.openingBalance +
-      customer.totalSales -
-      customer.totalPaid,
-    0
-  );
-
-  function updateForm(
-    field: keyof Customer,
-    value: string | number
+  async function loadCustomers(
+    refresh = false
   ) {
-    setForm((previous) => ({
-      ...previous,
-      [field]: value,
-    }));
-  }
+    try {
+      if (refresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
 
-  function resetForm() {
-    setForm({
-      id: 0,
-      name: "",
-      phone: "",
-      whatsapp: "",
-      address: "",
-      type: "Regular",
-      openingBalance: 0,
-      creditLimit: 0,
-      status: "Active",
-      totalSales: 0,
-      totalPaid: 0,
-    });
+      setError("");
 
-    setEditingId(null);
-  }
+      const response =
+        await fetch(
+          "/api/customers",
+          {
+            cache: "no-store",
+          }
+        );
 
-  function openAddCustomer() {
-    resetForm();
-    setShowForm(true);
-  }
+      const data =
+        await readApi(
+          response
+        );
 
-  function closeForm() {
-    setShowForm(false);
-    resetForm();
-  }
+      if (
+        !response.ok ||
+        data.success === false
+      ) {
+        throw new Error(
+          stringValue(
+            data.message ??
+              data.error,
+            "Failed to load customers."
+          )
+        );
+      }
 
-  function handleSubmit(
-    event: React.FormEvent<HTMLFormElement>
-  ) {
-    event.preventDefault();
-
-    if (!form.name.trim()) {
-      alert("Customer name is required.");
-      return;
-    }
-
-    if (!form.phone.trim()) {
-      alert("Phone number is required.");
-      return;
-    }
-
-    if (editingId !== null) {
-      setCustomers((previous) =>
-        previous.map((customer) =>
-          customer.id === editingId
-            ? {
-                ...form,
-                id: editingId,
-              }
-            : customer
+      const values =
+        Array.isArray(
+          data.customers
         )
+          ? data.customers
+          : [];
+
+      setCustomers(
+        values
+          .map(
+            normalizeCustomer
+          )
+          .filter(
+            (customer) =>
+              customer.id > 0
+          )
+          .sort(
+            (a, b) =>
+              b.id - a.id
+          )
       );
-    } else {
-      setCustomers((previous) => [
-        ...previous,
-        {
-          ...form,
-          id: Date.now(),
-        },
-      ]);
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to load customers."
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-
-    closeForm();
   }
 
-  function editCustomer(customer: Customer) {
-    setForm({
-      ...customer,
-    });
+  useEffect(() => {
+    void loadCustomers();
+  }, []);
 
-    setEditingId(customer.id);
-    setShowForm(true);
+  function addWholesaleCustomer() {
+    /*
+      IMPORTANT:
+
+      Customer pehle create
+      nahi hoga.
+
+      Direct Wholesale
+      Invoice open hoga.
+
+      Invoice save hone par
+      customer create hoga.
+    */
+
+    window.location.href =
+      "/dashboard/invoice?saleType=WHOLESALE";
   }
 
-  function deleteCustomer(id: number) {
-    const customer = customers.find(
-      (item) => item.id === id
-    );
+  function newInvoice(
+    customer: Customer
+  ) {
+    const params =
+      new URLSearchParams({
+        saleType:
+          "WHOLESALE",
 
-    if (!customer) return;
+        customerId:
+          String(
+            customer.id
+          ),
 
-    const confirmed = window.confirm(
-      `Delete "${customer.name}"?`
-    );
+        customerName:
+          customer.name,
 
-    if (!confirmed) return;
+        customerPhone:
+          customer.phone,
+      });
 
-    setCustomers((previous) =>
-      previous.filter(
-        (customer) => customer.id !== id
-      )
-    );
+    window.location.href =
+      `/dashboard/invoice?${params.toString()}`;
   }
 
-  function getBalance(customer: Customer) {
-    return (
-      customer.openingBalance +
-      customer.totalSales -
-      customer.totalPaid
-    );
+  async function viewHistory(
+    customer: Customer
+  ) {
+    try {
+      setSelectedCustomer({
+        ...customer,
+        invoices: [],
+      });
+
+      setShowHistory(
+        true
+      );
+
+      setHistoryLoading(
+        true
+      );
+
+      const response =
+        await fetch(
+          `/api/customers/${customer.id}`,
+          {
+            cache: "no-store",
+          }
+        );
+
+      const data =
+        await readApi(
+          response
+        );
+
+      if (
+        !response.ok ||
+        data.success === false
+      ) {
+        throw new Error(
+          stringValue(
+            data.message ??
+              data.error,
+            "Unable to load history."
+          )
+        );
+      }
+
+      const rawCustomer =
+        isRecord(
+          data.customer
+        )
+          ? data.customer
+          : {};
+
+      const customerData =
+        normalizeCustomer(
+          rawCustomer
+        );
+
+      const invoices =
+        Array.isArray(
+          rawCustomer.invoices
+        )
+          ? rawCustomer.invoices.map(
+              normalizeInvoice
+            )
+          : [];
+
+      setSelectedCustomer({
+        ...customerData,
+        invoices,
+      });
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to load history."
+      );
+
+      setShowHistory(
+        false
+      );
+    } finally {
+      setHistoryLoading(
+        false
+      );
+    }
   }
 
-  function formatCurrency(value: number) {
-    return `Rs. ${value.toLocaleString()}`;
-  }
+  const filteredCustomers =
+    useMemo(() => {
+      const text =
+        search
+          .trim()
+          .toLowerCase();
+
+      return customers.filter(
+        (customer) => {
+          const searchMatch =
+            !text ||
+            customer.name
+              .toLowerCase()
+              .includes(text) ||
+            customer.phone.includes(
+              text
+            ) ||
+            String(
+              customer.id
+            ).includes(text);
+
+          const statusMatch =
+            statusFilter ===
+              "ALL" ||
+            customer.paymentStatus ===
+              statusFilter;
+
+          return (
+            searchMatch &&
+            statusMatch
+          );
+        }
+      );
+    }, [
+      customers,
+      search,
+      statusFilter,
+    ]);
+
+  const stats =
+    useMemo(() => {
+      return {
+        customers:
+          customers.length,
+
+        sales:
+          customers.reduce(
+            (sum, item) =>
+              sum +
+              item.totalSales,
+            0
+          ),
+
+        paid:
+          customers.reduce(
+            (sum, item) =>
+              sum +
+              item.initialPaid,
+            0
+          ),
+
+        received:
+          customers.reduce(
+            (sum, item) =>
+              sum +
+              item.receivedAmount,
+            0
+          ),
+
+        remaining:
+          customers.reduce(
+            (sum, item) =>
+              sum +
+              item.receivable,
+            0
+          ),
+      };
+    }, [customers]);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-6 lg:p-8">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-6">
       <div className="mx-auto max-w-7xl space-y-6">
+        {/* HEADER */}
 
-        {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">
-              Customers
+              Wholesale Customers
             </h1>
 
             <p className="mt-1 text-sm text-slate-500">
-              Manage customers, credit and payment history.
+              Only wholesale customers and their credit history.
             </p>
           </div>
 
-          <button
-            onClick={openAddCustomer}
-            className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                void loadCustomers(
+                  true
+                )
+              }
+              disabled={
+                refreshing
+              }
+              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+            >
+              {refreshing
+                ? "Refreshing..."
+                : "Refresh"}
+            </button>
+
+            <button
+              type="button"
+              onClick={
+                addWholesaleCustomer
+              }
+              className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700"
+            >
+              + Add Wholesale Customer
+            </button>
+          </div>
+        </div>
+
+        {/* INFO */}
+
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+          <p className="font-bold text-blue-900">
+            Wholesale Flow
+          </p>
+
+          <p className="mt-1 text-sm text-blue-700">
+            Add Wholesale Customer par click karte hi Invoice Maker open
+            hoga. Customer Name + 11 digit Phone + products + payment
+            enter karein. Invoice save hote hi customer automatically
+            Customers list aur Sales mein aa jayega.
+          </p>
+        </div>
+
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+            {error}
+          </div>
+        )}
+
+        {/* STATS */}
+
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <StatCard
+            label="Customers"
+            value={
+              stats.customers
+            }
+          />
+
+          <StatCard
+            label="Total Sales"
+            value={formatCurrency(
+              stats.sales
+            )}
+          />
+
+          <StatCard
+            label="Initial Paid"
+            value={formatCurrency(
+              stats.paid
+            )}
+          />
+
+          <StatCard
+            label="Received Later"
+            value={formatCurrency(
+              stats.received
+            )}
+          />
+
+          <StatCard
+            label="Remaining"
+            value={formatCurrency(
+              stats.remaining
+            )}
+            danger={
+              stats.remaining > 0
+            }
+          />
+        </div>
+
+        {/* FILTER */}
+
+        <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_220px]">
+          <input
+            value={
+              search
+            }
+            onChange={(
+              event
+            ) =>
+              setSearch(
+                event.target.value
+              )
+            }
+            placeholder="Search name, phone or customer ID..."
+            className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500"
+          />
+
+          <select
+            value={
+              statusFilter
+            }
+            onChange={(
+              event
+            ) =>
+              setStatusFilter(
+                event.target
+                  .value as
+                  | "ALL"
+                  | PaymentStatus
+              )
+            }
+            className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
           >
-            + Add Customer
-          </button>
+            <option value="ALL">
+              All Status
+            </option>
+
+            <option value="PAID">
+              Paid
+            </option>
+
+            <option value="PARTIAL">
+              Partial
+            </option>
+
+            <option value="UNPAID">
+              Unpaid
+            </option>
+          </select>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {/* TABLE */}
 
-          <StatCard
-            title="Total Customers"
-            value={totalCustomers}
-          />
-
-          <StatCard
-            title="Active Customers"
-            value={activeCustomers}
-          />
-
-          <StatCard
-            title="Wholesale"
-            value={wholesaleCustomers}
-          />
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">
-              Total Receivable
-            </p>
-
-            <p className="mt-2 text-xl font-bold text-red-600">
-              {formatCurrency(totalReceivable)}
-            </p>
-          </div>
-
-        </div>
-
-        {/* Search & Filters */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-[1fr_180px_180px]">
-
-            {/* Search */}
-            <div className="relative">
-              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
-                🔎
-              </span>
-
-              <input
-                type="text"
-                value={search}
-                onChange={(event) =>
-                  setSearch(event.target.value)
-                }
-                placeholder="Search customer, phone or address..."
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm outline-none focus:border-slate-400 focus:bg-white"
-              />
-            </div>
-
-            {/* Type Filter */}
-            <select
-              value={typeFilter}
-              onChange={(event) =>
-                setTypeFilter(event.target.value)
-              }
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400"
-            >
-              <option value="All">
-                All Types
-              </option>
-
-              <option value="Regular">
-                Regular
-              </option>
-
-              <option value="Retail">
-                Retail
-              </option>
-
-              <option value="Wholesale">
-                Wholesale
-              </option>
-            </select>
-
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(event.target.value)
-              }
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400"
-            >
-              <option value="All">
-                All Status
-              </option>
-
-              <option value="Active">
-                Active
-              </option>
-
-              <option value="Inactive">
-                Inactive
-              </option>
-            </select>
-
-          </div>
-        </div>
-
-        {/* Customer Table */}
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-
           <div className="overflow-x-auto">
-
-            <table className="w-full min-w-275">
-
-              <thead className="border-b border-slate-200 bg-slate-50">
-
-                <tr>
+            <table className="w-full min-w-[1500px]">
+              <thead className="bg-slate-50">
+                <tr className="border-b border-slate-200">
                   <TableHead>
                     Customer
                   </TableHead>
 
                   <TableHead>
-                    Contact
+                    Phone
                   </TableHead>
 
                   <TableHead>
-                    Type
+                    Invoices
                   </TableHead>
 
                   <TableHead>
-                    Sales
+                    Total Sales
                   </TableHead>
 
                   <TableHead>
-                    Paid
+                    Initial Paid
                   </TableHead>
 
                   <TableHead>
-                    Balance
+                    Received
+                  </TableHead>
+
+                  <TableHead>
+                    Total Paid
+                  </TableHead>
+
+                  <TableHead>
+                    Remaining
+                  </TableHead>
+
+                  <TableHead>
+                    Change
+                  </TableHead>
+
+                  <TableHead>
+                    Last Purchase
                   </TableHead>
 
                   <TableHead>
@@ -415,439 +860,401 @@ export default function CustomersPage() {
                     Actions
                   </TableHead>
                 </tr>
-
               </thead>
 
-              <tbody className="divide-y divide-slate-100">
-
-                {filteredCustomers.length === 0 ? (
-
+              <tbody>
+                {loading ? (
                   <tr>
                     <td
-                      colSpan={8}
-                      className="px-6 py-12 text-center text-sm text-slate-500"
+                      colSpan={
+                        12
+                      }
+                      className="px-6 py-16 text-center text-sm text-slate-500"
                     >
-                      No customers found.
+                      Loading customers...
                     </td>
                   </tr>
-
+                ) : filteredCustomers.length ===
+                  0 ? (
+                  <tr>
+                    <td
+                      colSpan={
+                        12
+                      }
+                      className="px-6 py-16 text-center text-sm text-slate-500"
+                    >
+                      No wholesale customers yet.
+                    </td>
+                  </tr>
                 ) : (
-
                   filteredCustomers.map(
-                    (customer) => {
+                    (customer) => (
+                      <tr
+                        key={
+                          customer.id
+                        }
+                        className="border-b border-slate-100 hover:bg-slate-50"
+                      >
+                        <td className="px-5 py-4">
+                          <p className="font-bold text-slate-900">
+                            {
+                              customer.name
+                            }
+                          </p>
 
-                      const balance =
-                        getBalance(customer);
+                          <p className="text-xs text-slate-500">
+                            Customer #
+                            {
+                              customer.id
+                            }
+                          </p>
+                        </td>
 
-                      return (
-                        <tr
-                          key={customer.id}
-                          className="transition hover:bg-slate-50"
-                        >
+                        <td className="px-5 py-4 text-sm font-medium">
+                          {
+                            customer.phone
+                          }
+                        </td>
 
-                          {/* Customer */}
-                          <td className="px-5 py-4">
+                        <td className="px-5 py-4 font-bold">
+                          {
+                            customer.invoiceCount
+                          }
+                        </td>
 
-                            <div className="flex items-center gap-3">
+                        <td className="px-5 py-4 font-bold">
+                          {formatCurrency(
+                            customer.totalSales
+                          )}
+                        </td>
 
-                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 font-bold text-slate-700">
-                                {customer.name
-                                  .charAt(0)
-                                  .toUpperCase()}
-                              </div>
+                        <td className="px-5 py-4 font-bold text-emerald-700">
+                          {formatCurrency(
+                            customer.initialPaid
+                          )}
+                        </td>
 
-                              <div>
-                                <p className="font-semibold text-slate-900">
-                                  {customer.name}
-                                </p>
+                        <td className="px-5 py-4 font-bold text-blue-700">
+                          {formatCurrency(
+                            customer.receivedAmount
+                          )}
+                        </td>
 
-                                <p className="mt-1 max-w-45 truncate text-xs text-slate-500">
-                                  {customer.address ||
-                                    "No address"}
-                                </p>
-                              </div>
+                        <td className="px-5 py-4 font-bold text-emerald-700">
+                          {formatCurrency(
+                            customer.totalPaid
+                          )}
+                        </td>
 
-                            </div>
-
-                          </td>
-
-                          {/* Contact */}
-                          <td className="px-5 py-4">
-
-                            <p className="text-sm font-medium text-slate-700">
-                              {customer.phone}
-                            </p>
-
-                            {customer.whatsapp && (
-                              <p className="mt-1 text-xs text-green-600">
-                                WhatsApp:{" "}
-                                {customer.whatsapp}
-                              </p>
-                            )}
-
-                          </td>
-
-                          {/* Type */}
-                          <td className="px-5 py-4">
-
-                            <span
-                              className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                                customer.type ===
-                                "Wholesale"
-                                  ? "bg-blue-50 text-blue-700"
-                                  : customer.type ===
-                                    "Retail"
-                                  ? "bg-purple-50 text-purple-700"
-                                  : "bg-slate-100 text-slate-700"
-                              }`}
-                            >
-                              {customer.type}
-                            </span>
-
-                          </td>
-
-                          {/* Sales */}
-                          <td className="px-5 py-4 text-sm font-medium text-slate-700">
+                        <td className="px-5 py-4">
+                          <span
+                            className={
+                              customer.receivable >
+                              0
+                                ? "font-bold text-red-600"
+                                : "font-bold text-slate-600"
+                            }
+                          >
                             {formatCurrency(
-                              customer.totalSales
+                              customer.receivable
                             )}
-                          </td>
+                          </span>
+                        </td>
 
-                          {/* Paid */}
-                          <td className="px-5 py-4 text-sm font-medium text-green-600">
-                            {formatCurrency(
-                              customer.totalPaid
-                            )}
-                          </td>
+                        <td className="px-5 py-4 font-bold text-violet-700">
+                          {formatCurrency(
+                            customer.changeAmount
+                          )}
+                        </td>
 
-                          {/* Balance */}
-                          <td className="px-5 py-4">
+                        <td className="px-5 py-4 text-sm text-slate-500">
+                          {formatDate(
+                            customer.lastPurchase
+                          )}
+                        </td>
 
-                            <p
-                              className={`text-sm font-bold ${
-                                balance > 0
-                                  ? "text-red-600"
-                                  : balance < 0
-                                  ? "text-green-600"
-                                  : "text-slate-600"
-                              }`}
+                        <td className="px-5 py-4">
+                          <StatusBadge
+                            status={
+                              customer.paymentStatus
+                            }
+                          />
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                newInvoice(
+                                  customer
+                                )
+                              }
+                              className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white"
                             >
-                              {formatCurrency(
-                                Math.abs(balance)
-                              )}
-                            </p>
+                              New Invoice
+                            </button>
 
-                            <p className="mt-1 text-xs text-slate-400">
-                              {balance > 0
-                                ? "Receivable"
-                                : balance < 0
-                                ? "Advance"
-                                : "Clear"}
-                            </p>
-
-                          </td>
-
-                          {/* Status */}
-                          <td className="px-5 py-4">
-
-                            <span
-                              className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                                customer.status ===
-                                "Active"
-                                  ? "bg-green-50 text-green-700"
-                                  : "bg-red-50 text-red-600"
-                              }`}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void viewHistory(
+                                  customer
+                                )
+                              }
+                              className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700"
                             >
-                              {customer.status}
-                            </span>
-
-                          </td>
-
-                          {/* Actions */}
-                          <td className="px-5 py-4">
-
-                            <div className="flex gap-2">
-
-                              <button
-                                onClick={() =>
-                                  editCustomer(
-                                    customer
-                                  )
-                                }
-                                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                              >
-                                Edit
-                              </button>
-
-                              <button
-                                onClick={() =>
-                                  deleteCustomer(
-                                    customer.id
-                                  )
-                                }
-                                className="rounded-lg border border-red-100 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
-                              >
-                                Delete
-                              </button>
-
-                            </div>
-
-                          </td>
-
-                        </tr>
-                      );
-                    }
+                              History
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
                   )
-
                 )}
-
               </tbody>
-
             </table>
-
           </div>
         </div>
-
       </div>
 
-      {/* Add / Edit Modal */}
-      {showForm && (
+      {/* HISTORY */}
 
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+      {showHistory &&
+        selectedCustomer && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+            <div className="max-h-[92vh] w-full max-w-7xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-5">
+                <div>
+                  <h2 className="text-xl font-bold">
+                    {
+                      selectedCustomer.name
+                    }
+                  </h2>
 
-          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+                  <p className="text-sm text-slate-500">
+                    {
+                      selectedCustomer.phone
+                    }
+                  </p>
+                </div>
 
-            {/* Modal Header */}
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-5">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      newInvoice(
+                        selectedCustomer
+                      )
+                    }
+                    className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white"
+                  >
+                    + New Invoice
+                  </button>
 
-              <div>
-                <h2 className="text-xl font-bold text-slate-900">
-                  {editingId !== null
-                    ? "Edit Customer"
-                    : "Add Customer"}
-                </h2>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Enter customer information below.
-                </p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowHistory(
+                        false
+                      )
+                    }
+                    className="h-9 w-9 rounded-full bg-slate-100 font-bold"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
 
-              <button
-                onClick={closeForm}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-lg text-slate-600 hover:bg-slate-200"
-              >
-                ×
-              </button>
+              <div className="p-6">
+                {historyLoading ? (
+                  <div className="py-16 text-center">
+                    Loading...
+                  </div>
+                ) : (
+                  <>
+                    <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+                      <StatCard
+                        label="Invoices"
+                        value={
+                          selectedCustomer.invoiceCount
+                        }
+                      />
 
+                      <StatCard
+                        label="Sales"
+                        value={formatCurrency(
+                          selectedCustomer.totalSales
+                        )}
+                      />
+
+                      <StatCard
+                        label="Initial Paid"
+                        value={formatCurrency(
+                          selectedCustomer.initialPaid
+                        )}
+                      />
+
+                      <StatCard
+                        label="Received Later"
+                        value={formatCurrency(
+                          selectedCustomer.receivedAmount
+                        )}
+                      />
+
+                      <StatCard
+                        label="Total Paid"
+                        value={formatCurrency(
+                          selectedCustomer.totalPaid
+                        )}
+                      />
+
+                      <StatCard
+                        label="Remaining"
+                        value={formatCurrency(
+                          selectedCustomer.receivable
+                        )}
+                        danger={
+                          selectedCustomer.receivable >
+                          0
+                        }
+                      />
+                    </div>
+
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                      <table className="w-full min-w-[1250px]">
+                        <thead className="bg-slate-50">
+                          <tr>
+                            <TableHead>
+                              Invoice
+                            </TableHead>
+
+                            <TableHead>
+                              Date
+                            </TableHead>
+
+                            <TableHead>
+                              Total
+                            </TableHead>
+
+                            <TableHead>
+                              Initial Paid
+                            </TableHead>
+
+                            <TableHead>
+                              Received Later
+                            </TableHead>
+
+                            <TableHead>
+                              Total Paid
+                            </TableHead>
+
+                            <TableHead>
+                              Remaining
+                            </TableHead>
+
+                            <TableHead>
+                              Change
+                            </TableHead>
+
+                            <TableHead>
+                              Status
+                            </TableHead>
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          {selectedCustomer.invoices.length ===
+                          0 ? (
+                            <tr>
+                              <td
+                                colSpan={
+                                  9
+                                }
+                                className="p-12 text-center text-slate-500"
+                              >
+                                No wholesale invoices.
+                              </td>
+                            </tr>
+                          ) : (
+                            selectedCustomer.invoices.map(
+                              (
+                                invoice
+                              ) => (
+                                <tr
+                                  key={
+                                    invoice.id
+                                  }
+                                  className="border-t border-slate-100"
+                                >
+                                  <td className="px-5 py-4 font-bold">
+                                    {
+                                      invoice.invoiceNumber
+                                    }
+                                  </td>
+
+                                  <td className="px-5 py-4">
+                                    {formatDate(
+                                      invoice.createdAt
+                                    )}
+                                  </td>
+
+                                  <td className="px-5 py-4 font-bold">
+                                    {formatCurrency(
+                                      invoice.total
+                                    )}
+                                  </td>
+
+                                  <td className="px-5 py-4 font-bold text-emerald-700">
+                                    {formatCurrency(
+                                      invoice.initialPaid
+                                    )}
+                                  </td>
+
+                                  <td className="px-5 py-4 font-bold text-blue-700">
+                                    {formatCurrency(
+                                      invoice.receivedAmount
+                                    )}
+                                  </td>
+
+                                  <td className="px-5 py-4 font-bold text-emerald-700">
+                                    {formatCurrency(
+                                      invoice.totalPaid
+                                    )}
+                                  </td>
+
+                                  <td className="px-5 py-4 font-bold text-red-600">
+                                    {formatCurrency(
+                                      invoice.remainingBalance
+                                    )}
+                                  </td>
+
+                                  <td className="px-5 py-4 font-bold text-violet-700">
+                                    {formatCurrency(
+                                      invoice.changeAmount
+                                    )}
+                                  </td>
+
+                                  <td className="px-5 py-4">
+                                    <StatusBadge
+                                      status={
+                                        invoice.status
+                                      }
+                                    />
+                                  </td>
+                                </tr>
+                              )
+                            )
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
-
-            {/* Form */}
-            <form
-              onSubmit={handleSubmit}
-              className="space-y-6 p-6"
-            >
-
-              {/* Basic Info */}
-              <section className="rounded-2xl border border-slate-200 p-5">
-
-                <h3 className="text-base font-bold text-slate-900">
-                  Customer Information
-                </h3>
-
-                <div className="mt-5 grid gap-4 sm:grid-cols-2">
-
-                  <Input
-                    label="Customer Name"
-                    required
-                    value={form.name}
-                    onChange={(value) =>
-                      updateForm("name", value)
-                    }
-                    placeholder="e.g. Muhammad Ali"
-                  />
-
-                  <Input
-                    label="Phone Number"
-                    required
-                    value={form.phone}
-                    onChange={(value) =>
-                      updateForm("phone", value)
-                    }
-                    placeholder="03001234567"
-                  />
-
-                  <Input
-                    label="WhatsApp Number"
-                    value={form.whatsapp}
-                    onChange={(value) =>
-                      updateForm(
-                        "whatsapp",
-                        value
-                      )
-                    }
-                    placeholder="03001234567"
-                  />
-
-                  <Input
-                    label="Address"
-                    value={form.address}
-                    onChange={(value) =>
-                      updateForm(
-                        "address",
-                        value
-                      )
-                    }
-                    placeholder="Customer address"
-                  />
-
-                </div>
-
-              </section>
-
-              {/* Customer Type */}
-              <section className="rounded-2xl border border-slate-200 p-5">
-
-                <h3 className="text-base font-bold text-slate-900">
-                  Customer Type
-                </h3>
-
-                <div className="mt-5 grid gap-4 sm:grid-cols-2">
-
-                  <Select
-                    label="Customer Type"
-                    value={form.type}
-                    onChange={(value) =>
-                      updateForm(
-                        "type",
-                        value as CustomerType
-                      )
-                    }
-                    options={[
-                      "Regular",
-                      "Retail",
-                      "Wholesale",
-                    ]}
-                  />
-
-                  <Select
-                    label="Status"
-                    value={form.status}
-                    onChange={(value) =>
-                      updateForm(
-                        "status",
-                        value as CustomerStatus
-                      )
-                    }
-                    options={[
-                      "Active",
-                      "Inactive",
-                    ]}
-                  />
-
-                </div>
-
-              </section>
-
-              {/* Credit */}
-              <section className="rounded-2xl border border-orange-200 bg-orange-50/40 p-5">
-
-                <h3 className="text-base font-bold text-slate-900">
-                  Credit & Balance
-                </h3>
-
-                <p className="mt-1 text-xs text-slate-500">
-                  Opening balance and credit limit can
-                  be used later for customer payments.
-                </p>
-
-                <div className="mt-5 grid gap-4 sm:grid-cols-2">
-
-                  <Input
-                    label="Opening Balance"
-                    type="number"
-                    value={form.openingBalance}
-                    onChange={(value) =>
-                      updateForm(
-                        "openingBalance",
-                        Number(value)
-                      )
-                    }
-                    placeholder="0"
-                  />
-
-                  <Input
-                    label="Credit Limit"
-                    type="number"
-                    value={form.creditLimit}
-                    onChange={(value) =>
-                      updateForm(
-                        "creditLimit",
-                        Number(value)
-                      )
-                    }
-                    placeholder="0"
-                  />
-
-                </div>
-
-              </section>
-
-              {/* Footer */}
-              <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-end">
-
-                <button
-                  type="button"
-                  onClick={closeForm}
-                  className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  className="rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800"
-                >
-                  {editingId !== null
-                    ? "Update Customer"
-                    : "Save Customer"}
-                </button>
-
-              </div>
-
-            </form>
-
           </div>
-
-        </div>
-
-      )}
-
-    </div>
-  );
-}
-
-/* =========================
-   Reusable Components
-========================= */
-
-function StatCard({
-  title,
-  value,
-}: {
-  title: string;
-  value: number;
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-
-      <p className="text-sm font-medium text-slate-500">
-        {title}
-      </p>
-
-      <p className="mt-2 text-2xl font-bold text-slate-900">
-        {value}
-      </p>
-
+        )}
     </div>
   );
 }
@@ -855,93 +1262,69 @@ function StatCard({
 function TableHead({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+    <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
       {children}
     </th>
   );
 }
 
-function Input({
+function StatCard({
   label,
   value,
-  onChange,
-  placeholder,
-  type = "text",
-  required = false,
+  danger = false,
 }: {
   label: string;
-  value: string | number;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  type?: string;
-  required?: boolean;
+  value: ReactNode;
+  danger?: boolean;
 }) {
   return (
-    <label className="block">
-
-      <span className="mb-2 block text-sm font-medium text-slate-700">
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-sm text-slate-500">
         {label}
+      </p>
 
-        {required && (
-          <span className="ml-1 text-red-500">
-            *
-          </span>
-        )}
-      </span>
-
-      <input
-        required={required}
-        type={type}
-        value={value}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
-        placeholder={placeholder}
-        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
-      />
-
-    </label>
+      <p
+        className={`mt-2 text-xl font-bold ${
+          danger
+            ? "text-red-600"
+            : "text-slate-900"
+        }`}
+      >
+        {value}
+      </p>
+    </div>
   );
 }
 
-function Select({
-  label,
-  value,
-  onChange,
-  options,
+function StatusBadge({
+  status,
 }: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: string[];
+  status: PaymentStatus;
 }) {
-  return (
-    <label className="block">
-
-      <span className="mb-2 block text-sm font-medium text-slate-700">
-        {label}
+  if (status === "PAID") {
+    return (
+      <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+        Paid
       </span>
+    );
+  }
 
-      <select
-        value={value}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
-        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
-      >
-        {options.map((option) => (
-          <option
-            key={option}
-            value={option}
-          >
-            {option}
-          </option>
-        ))}
-      </select>
+  if (
+    status === "PARTIAL"
+  ) {
+    return (
+      <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+        Partial
+      </span>
+    );
+  }
 
-    </label>
+  return (
+    <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-600">
+      Unpaid
+    </span>
   );
 }

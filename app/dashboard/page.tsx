@@ -25,9 +25,7 @@ import { db } from "@/src/prisma/db";
 function numberValue(value: unknown) {
   const number = Number(value);
 
-  return Number.isFinite(number)
-    ? number
-    : 0;
+  return Number.isFinite(number) ? number : 0;
 }
 
 /* =====================================================
@@ -35,9 +33,7 @@ function numberValue(value: unknown) {
 ===================================================== */
 
 function formatCurrency(value: number) {
-  return `Rs. ${Number(
-    value || 0
-  ).toLocaleString("en-PK", {
+  return `Rs. ${Number(value || 0).toLocaleString("en-PK", {
     maximumFractionDigits: 2,
   })}`;
 }
@@ -47,59 +43,37 @@ function formatCurrency(value: number) {
    Pakistan Timezone
 ===================================================== */
 
-function getDateKey(
-  value: string | Date
-) {
+function getDateKey(value: string | Date) {
   const date =
     value instanceof Date
       ? value
       : new Date(value);
 
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
+  if (Number.isNaN(date.getTime())) {
     return "";
   }
 
   const parts =
-    new Intl.DateTimeFormat(
-      "en-US",
-      {
-        timeZone:
-          "Asia/Karachi",
-
-        year:
-          "numeric",
-
-        month:
-          "2-digit",
-
-        day:
-          "2-digit",
-      }
-    ).formatToParts(date);
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Karachi",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
 
   const year =
     parts.find(
-      (part) =>
-        part.type ===
-        "year"
+      (part) => part.type === "year"
     )?.value || "";
 
   const month =
     parts.find(
-      (part) =>
-        part.type ===
-        "month"
+      (part) => part.type === "month"
     )?.value || "";
 
   const day =
     parts.find(
-      (part) =>
-        part.type ===
-        "day"
+      (part) => part.type === "day"
     )?.value || "";
 
   return `${year}-${month}-${day}`;
@@ -109,39 +83,22 @@ function getDateKey(
    DISPLAY DATE
 ===================================================== */
 
-function formatDate(
-  value: unknown
-) {
+function formatDate(value: unknown) {
   if (!value) {
     return "-";
   }
 
-  const date =
-    new Date(
-      String(value)
-    );
+  const date = new Date(String(value));
 
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
+  if (Number.isNaN(date.getTime())) {
     return "-";
   }
 
-  return date.toLocaleString(
-    "en-PK",
-    {
-      timeZone:
-        "Asia/Karachi",
-
-      dateStyle:
-        "medium",
-
-      timeStyle:
-        "short",
-    }
-  );
+  return date.toLocaleString("en-PK", {
+    timeZone: "Asia/Karachi",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 /* =====================================================
@@ -171,16 +128,12 @@ function calculateTrend(
       yesterday) *
     100;
 
-  const up =
-    percentage >= 0;
+  const up = percentage >= 0;
 
   return {
     value: `${
       up ? "+" : ""
-    }${percentage.toFixed(
-      1
-    )}%`,
-
+    }${percentage.toFixed(1)}%`,
     up,
   };
 }
@@ -192,27 +145,61 @@ function calculateTrend(
 function calculateWeightStock(
   value: unknown
 ) {
-  return String(
-    value || ""
-  )
+  return String(value || "")
     .split("+")
     .map((item) =>
       Number(item.trim())
     )
     .filter(
       (item) =>
-        Number.isFinite(
-          item
-        ) && item > 0
+        Number.isFinite(item) &&
+        item > 0
     )
     .reduce(
-      (
-        total,
-        weight
-      ) =>
+      (total, weight) =>
         total + weight,
       0
     );
+}
+
+/* =====================================================
+   ACTIVE PRODUCT CHECK
+===================================================== */
+
+function isActiveProduct(
+  status: unknown
+) {
+  return (
+    String(status || "")
+      .trim()
+      .toLowerCase() ===
+    "active"
+  );
+}
+
+/* =====================================================
+   VISIBLE SUPPLIER CHECK
+
+   IMPORTANT:
+   Same business rule as Suppliers page.
+
+   Inactive / Archived / Deleted suppliers
+   Dashboard count mein include nahi honge.
+===================================================== */
+
+function isVisibleSupplier(
+  status: unknown
+) {
+  const normalizedStatus =
+    String(status || "")
+      .trim()
+      .toLowerCase();
+
+  return ![
+    "inactive",
+    "archived",
+    "deleted",
+  ].includes(normalizedStatus);
 }
 
 /* =====================================================
@@ -323,25 +310,39 @@ export default async function DashboardPage() {
     customers,
     products,
     suppliers,
-  ] =
-    await Promise.all([
-      db.orm.public.Invoice.all(),
+  ] = await Promise.all([
+    db.orm.public.Invoice.all(),
+    db.orm.public.InvoiceItem.all(),
+    db.orm.public.Customer.all(),
+    db.orm.public.Product.all(),
+    db.orm.public.Supplier.all(),
+  ]);
 
-      db.orm.public.InvoiceItem.all(),
+  /* =================================================
+     ACTIVE / VISIBLE DATA
+  ================================================= */
 
-      db.orm.public.Customer.all(),
+  const activeProducts =
+    products.filter(
+      (product) =>
+        isActiveProduct(
+          product.status
+        )
+    );
 
-      db.orm.public.Product.all(),
-
-      db.orm.public.Supplier.all(),
-    ]);
+  const visibleSuppliers =
+    suppliers.filter(
+      (supplier) =>
+        isVisibleSupplier(
+          supplier.status
+        )
+    );
 
   /* =================================================
      TODAY / YESTERDAY
   ================================================= */
 
-  const now =
-    new Date();
+  const now = new Date();
 
   const todayKey =
     getDateKey(now);
@@ -350,8 +351,7 @@ export default async function DashboardPage() {
     new Date(now);
 
   yesterdayDate.setDate(
-    yesterdayDate.getDate() -
-      1
+    yesterdayDate.getDate() - 1
   );
 
   const yesterdayKey =
@@ -390,10 +390,7 @@ export default async function DashboardPage() {
 
   const todaySales =
     todayInvoices.reduce(
-      (
-        total,
-        invoice
-      ) =>
+      (total, invoice) =>
         total +
         numberValue(
           invoice.total
@@ -403,10 +400,7 @@ export default async function DashboardPage() {
 
   const yesterdaySales =
     yesterdayInvoices.reduce(
-      (
-        total,
-        invoice
-      ) =>
+      (total, invoice) =>
         total +
         numberValue(
           invoice.total
@@ -446,10 +440,7 @@ export default async function DashboardPage() {
 
   const todayProfit =
     invoiceItems.reduce(
-      (
-        total,
-        item
-      ) => {
+      (total, item) => {
         if (
           !todayInvoiceIds.has(
             Number(
@@ -472,10 +463,7 @@ export default async function DashboardPage() {
 
   const yesterdayProfit =
     invoiceItems.reduce(
-      (
-        total,
-        item
-      ) => {
+      (total, item) => {
         if (
           !yesterdayInvoiceIds.has(
             Number(
@@ -554,17 +542,14 @@ export default async function DashboardPage() {
   ================================================= */
 
   const totalProducts =
-    products.length;
+    activeProducts.length;
 
   const totalSuppliers =
-    suppliers.length;
+    visibleSuppliers.length;
 
   const totalSales =
     invoices.reduce(
-      (
-        total,
-        invoice
-      ) =>
+      (total, invoice) =>
         total +
         numberValue(
           invoice.total
@@ -577,10 +562,13 @@ export default async function DashboardPage() {
 
   /* =================================================
      INVENTORY DATA
+
+     Only ACTIVE products should appear in
+     Dashboard inventory statistics.
   ================================================= */
 
   const inventoryProducts =
-    products.map(
+    activeProducts.map(
       (product) => {
         const type =
           String(
@@ -958,7 +946,7 @@ export default async function DashboardPage() {
             value={String(
               totalProducts
             )}
-            description="Total registered products"
+            description="Total active products"
             href="/dashboard/product"
             icon={
               <Package
@@ -990,7 +978,7 @@ export default async function DashboardPage() {
             value={String(
               totalSuppliers
             )}
-            description="Total registered suppliers"
+            description="Total active suppliers"
             href="/dashboard/suppliers"
             icon={
               <Truck
@@ -1229,9 +1217,7 @@ export default async function DashboardPage() {
                       <div className="flex min-w-0 items-center gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
                           <AlertTriangle
-                            size={
-                              19
-                            }
+                            size={19}
                           />
                         </div>
 
