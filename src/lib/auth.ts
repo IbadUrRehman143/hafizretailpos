@@ -1,50 +1,19 @@
-export type AuthSession = {
-  userId: number;
-  name: string;
-  email: string;
-  role: string;
-  branchId: number | null;
-  permissions: string[];
-  exp: number;
-};
+import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { cookies } from "next/headers";
+import { db } from "@/src/prisma/db";
 
-export const AUTH_COOKIE = "hafiz_pos_session";
+export const AUTH_COOKIE = "hafiz_session";
+const SESSION_SECONDS = 60 * 60 * 12;
 
-function b64url(input: Uint8Array | string) {
-  const bytes = typeof input === "string" ? new TextEncoder().encode(input) : input;
-  let binary = "";
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-}
-function fromB64url(value: string) {
-  const padded = value.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((value.length + 3) % 4);
-  const binary = atob(padded);
-  return Uint8Array.from(binary, c => c.charCodeAt(0));
-}
-async function signature(data: string, secret: string) {
-  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  return b64url(new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data))));
-}
-export async function createSessionToken(session: Omit<AuthSession, "exp">, ttlSeconds = 60 * 60 * 12) {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret || secret.length < 32) throw new Error("AUTH_SECRET must be at least 32 characters.");
-  const payload = b64url(JSON.stringify({ ...session, exp: Math.floor(Date.now() / 1000) + ttlSeconds }));
-  return `${payload}.${await signature(payload, secret)}`;
-}
-export async function verifySessionToken(token?: string | null): Promise<AuthSession | null> {
-  try {
-    if (!token) return null;
-    const secret = process.env.AUTH_SECRET;
-    if (!secret || secret.length < 32) return null;
-    const [payload, sig] = token.split(".");
-    if (!payload || !sig || (await signature(payload, secret)) !== sig) return null;
-    const data = JSON.parse(new TextDecoder().decode(fromB64url(payload))) as AuthSession;
-    if (!data.userId || !data.exp || data.exp <= Math.floor(Date.now() / 1000)) return null;
-    return data;
-  } catch { return null; }
-}
-export function hasPermission(session: AuthSession, module: string, action = "view") {
-  if (session.role.toLowerCase() === "super admin") return true;
-  const p = new Set(session.permissions);
-  return p.has(module) || p.has(`${module}.${action}`);
-}
+type SessionPayload = { id:number; email:string; name:string; role:string; roleId:number|null; branchId:number|null; permissions:string[]; exp:number };
+const b64u=(v:string|Buffer)=>Buffer.from(v).toString("base64url");
+function secret(){ const s=process.env.AUTH_SECRET; if(!s || s.length<32) throw new Error("AUTH_SECRET must be at least 32 characters."); return s; }
+export function hashPassword(password:string){ if(password.length<8) throw new Error("Password must be at least 8 characters."); const salt=randomBytes(16); const hash=scryptSync(password,salt,64); return `scrypt$${salt.toString("hex")}$${hash.toString("hex")}`; }
+export function verifyPassword(password:string, stored:string){ try { const [alg,saltHex,hashHex]=stored.split("$"); if(alg!=="scrypt") return false; const expected=Buffer.from(hashHex,"hex"); const actual=scryptSync(password,Buffer.from(saltHex,"hex"),expected.length); return timingSafeEqual(expected,actual); } catch { return false; } }
+export function signSession(payload:Omit<SessionPayload,"exp">){ const body=b64u(JSON.stringify({...payload,exp:Math.floor(Date.now()/1000)+SESSION_SECONDS})); const sig=createHmac("sha256",secret()).update(body).digest("base64url"); return `${body}.${sig}`; }
+export function verifySessionToken(token:string):SessionPayload|null { try { const [body,sig]=token.split("."); if(!body||!sig) return null; const expected=createHmac("sha256",secret()).update(body).digest(); const got=Buffer.from(sig,"base64url"); if(got.length!==expected.length||!timingSafeEqual(got,expected)) return null; const p=JSON.parse(Buffer.from(body,"base64url").toString()) as SessionPayload; return p.exp>Math.floor(Date.now()/1000)?p:null; } catch{return null;} }
+export async function setSessionCookie(payload:Omit<SessionPayload,"exp">){ const store=await cookies(); store.set(AUTH_COOKIE,signSession(payload),{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"lax",path:"/",maxAge:SESSION_SECONDS}); }
+export async function clearSessionCookie(){ const store=await cookies(); store.set(AUTH_COOKIE,"",{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"lax",path:"/",maxAge:0}); }
+export async function currentSession(){ const store=await cookies(); return verifySessionToken(store.get(AUTH_COOKIE)?.value||""); }
+export async function buildUserSession(user:{id:number;email:string;name:string;roleId:number|null;branchId:number|null}){ const [roles,permissions]=await Promise.all([db.orm.public.Role.all(),db.orm.public.RolePermission.all()]); const role=roles.find(r=>r.id===user.roleId); return {id:user.id,email:user.email,name:user.name,role:role?.name||"",roleId:user.roleId,branchId:user.branchId,permissions: role?.name==="Super Admin"?["*"]:permissions.filter(p=>p.roleId===user.roleId).map(p=>p.permission)}; }
+export function hasPermission(session:SessionPayload,module:string,action="view"){ if(session.role==="Super Admin"||session.permissions.includes("*")) return true; return session.permissions.includes(`${module}.${action}`)||session.permissions.includes(module); }

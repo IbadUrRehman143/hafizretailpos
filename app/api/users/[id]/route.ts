@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/src/prisma/db";
-import { hashPassword } from "@/src/lib/password";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -64,9 +63,6 @@ export async function PUT(
 
     const phone =
       String(body.phone || "").trim();
-
-    const password = String(body.password || "");
-    const passwordHash = password ? await hashPassword(password) : null;
 
     const status =
       String(body.status || "Active") ===
@@ -164,7 +160,6 @@ export async function PUT(
               status,
               roleId,
               branchId,
-              ...(passwordHash ? { passwordHash } : {}),
             });
 
         await tx.orm.public.AuditLog.create({

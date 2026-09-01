@@ -1,2 +1,2 @@
-import {spawnSync} from 'node:child_process';import fs from 'node:fs';
-if(!process.env.DATABASE_URL)throw new Error('DATABASE_URL is required');fs.mkdirSync('backups',{recursive:true});const file=`backups/hafiz-pos-${new Date().toISOString().replace(/[:.]/g,'-')}.dump`;const r=spawnSync('pg_dump',['--format=custom','--file',file,process.env.DATABASE_URL],{stdio:'inherit'});if(r.status!==0)process.exit(r.status??1);console.log(`Backup created: ${file}`);
+import {spawnSync} from "node:child_process"; import {mkdirSync} from "node:fs";
+if(!process.env.DATABASE_URL){console.error("DATABASE_URL missing");process.exit(1)} mkdirSync("backups",{recursive:true}); const stamp=new Date().toISOString().replace(/[:.]/g,"-"); const file=`backups/hafiz-${stamp}.sql`; const r=spawnSync("pg_dump",[process.env.DATABASE_URL,"-f",file],{stdio:"inherit"}); if(r.status!==0)process.exit(r.status??1); console.log(`Backup: ${file}`);

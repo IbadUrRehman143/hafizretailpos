@@ -1,18 +1,20 @@
-import { randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
-import { promisify } from "node:util";
-const scrypt = promisify(scryptCb);
-export async function hashPassword(password: string) {
+import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+
+const KEYLEN = 64;
+
+export function hashPassword(password: string) {
   if (password.length < 8) throw new Error("Password must be at least 8 characters.");
   const salt = randomBytes(16).toString("hex");
-  const derived = (await scrypt(password, salt, 64)) as Buffer;
-  return `scrypt$${salt}$${derived.toString("hex")}`;
+  const hash = scryptSync(password, salt, KEYLEN).toString("hex");
+  return `scrypt$${salt}$${hash}`;
 }
+
 export async function verifyPassword(password: string, stored: string) {
   try {
-    const [kind, salt, hash] = stored.split("$");
-    if (kind !== "scrypt" || !salt || !hash) return false;
-    const derived = (await scrypt(password, salt, 64)) as Buffer;
-    const expected = Buffer.from(hash, "hex");
-    return expected.length === derived.length && timingSafeEqual(expected, derived);
+    const [scheme, salt, expectedHex] = String(stored || "").split("$");
+    if (scheme !== "scrypt" || !salt || !expectedHex) return false;
+    const actual = scryptSync(password, salt, KEYLEN);
+    const expected = Buffer.from(expectedHex, "hex");
+    return actual.length === expected.length && timingSafeEqual(actual, expected);
   } catch { return false; }
 }

@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { db } from "@/src/prisma/db";
 import { createLowStockNotification, createNotification } from "@/src/lib/notifications";
 import { getBusinessSettings, normalizeInvoicePrefix } from "@/src/lib/businessSettings";
-import { sendBusinessMessage } from "@/src/lib/messaging";
 
 /* =====================================================
    TYPES
@@ -1200,15 +1199,6 @@ export async function POST(
           };
         }
       );
-
-    if (body.customer?.phone) {
-      await sendBusinessMessage({
-        to: body.customer.phone,
-        template: "sale_confirmation",
-        values: { invoiceNumber: result.invoiceNumber, total: result.total, paid: result.paidAmount, remaining: result.remainingBalance },
-        fallbackToSms: true,
-      }).catch((error) => console.error("Sale message failed:", error));
-    }
 
     /* =================================================
        SUCCESS

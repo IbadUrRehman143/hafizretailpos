@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AUTH_COOKIE, hasPermission, verifySessionToken } from "@/src/lib/auth";
-const map:[string,string][]=[["/dashboard/product","products"],["/dashboard/inventory","inventory"],["/dashboard/purchases","purchases"],["/dashboard/sales","sales"],["/dashboard/invoice","pos"],["/dashboard/returns","returns"],["/dashboard/customers","customers"],["/dashboard/suppliers","suppliers"],["/dashboard/expenses","expenses"],["/dashboard/reports","reports"],["/dashboard/notifications","notifications"],["/dashboard/users","users"],["/dashboard/branches","branches"],["/dashboard/settings","settings"],["/dashboard/audit-logs","auditLogs"],["/api/products","products"],["/api/categories","products"],["/api/subcategories","products"],["/api/inventory","inventory"],["/api/purchases","purchases"],["/api/invoices","sales"],["/api/returns","returns"],["/api/customers","customers"],["/api/suppliers","suppliers"],["/api/expenses","expenses"],["/api/reports","reports"],["/api/notifications","notifications"],["/api/messages","notifications"],["/api/users","users"],["/api/roles","users"],["/api/branches","branches"],["/api/settings","settings"],["/api/audit-logs","auditLogs"]];
-export async function proxy(req:NextRequest){const p=req.nextUrl.pathname;if(p.startsWith("/api/auth")||p==="/api/messages/webhook"||p==="/login")return NextResponse.next();const protectedPath=p.startsWith("/dashboard")||p.startsWith("/mobile")||p.startsWith("/api/");if(!protectedPath)return NextResponse.next();const s=await verifySessionToken(req.cookies.get(AUTH_COOKIE)?.value);if(!s){if(p.startsWith("/api/"))return NextResponse.json({success:false,message:"Unauthorized"},{status:401});return NextResponse.redirect(new URL("/login",req.url));}const module=map.find(([prefix])=>p.startsWith(prefix))?.[1] ?? (p==="/dashboard"?"dashboard":null);const action=req.method==="GET"?"view":req.method==="POST"?"create":req.method==="DELETE"?"delete":"edit";if(module&&!hasPermission(s,module,action)){if(p.startsWith("/api/"))return NextResponse.json({success:false,message:"Forbidden"},{status:403});return NextResponse.redirect(new URL("/dashboard",req.url));}return NextResponse.next();}
-export const config={matcher:["/dashboard/:path*","/mobile/:path*","/api/:path*"]};
+const SESSION_COOKIE = "hafiz_pos_session";
+
+export function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const hasSession = Boolean(request.cookies.get(SESSION_COOKIE)?.value);
+  if (pathname.startsWith("/dashboard") && !hasSession) return NextResponse.redirect(new URL("/login", request.url));
+  if (pathname === "/login" && hasSession) return NextResponse.redirect(new URL("/dashboard", request.url));
+  return NextResponse.next();
+}
+export const config = { matcher:["/dashboard/:path*","/login"] };
