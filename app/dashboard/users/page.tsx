@@ -41,31 +41,93 @@ type AppUser = {
 };
 
 const permissionOptions = [
-  ["dashboard", "Dashboard"],
-  ["pos", "POS"],
-  ["products", "Products"],
-  ["inventory", "Inventory"],
-  ["purchases", "Purchases"],
-  ["sales", "Sales"],
-  ["returns", "Returns"],
-  ["customers", "Customers"],
-  ["suppliers", "Suppliers"],
-  ["expenses", "Expenses"],
-  ["reports", "Reports"],
-  [
-    "notifications",
-    "Notifications",
-  ],
-  ["users", "Users & Roles"],
-  ["branches", "Branches"],
-  ["settings", "Settings"],
-  ["auditLogs", "Audit Logs"],
+  ["dashboard.view", "Dashboard — View"],
+  ["dashboard.create", "Dashboard — Create"],
+  ["dashboard.edit", "Dashboard — Edit"],
+  ["dashboard.delete", "Dashboard — Delete"],
+  ["dashboard.export", "Dashboard — Export"],
+  ["pos.view", "POS — View"],
+  ["pos.create", "POS — Create"],
+  ["pos.edit", "POS — Edit"],
+  ["pos.delete", "POS — Delete"],
+  ["pos.export", "POS — Export"],
+  ["products.view", "Products — View"],
+  ["products.create", "Products — Create"],
+  ["products.edit", "Products — Edit"],
+  ["products.delete", "Products — Delete"],
+  ["products.export", "Products — Export"],
+  ["inventory.view", "Inventory — View"],
+  ["inventory.create", "Inventory — Create"],
+  ["inventory.edit", "Inventory — Edit"],
+  ["inventory.delete", "Inventory — Delete"],
+  ["inventory.export", "Inventory — Export"],
+  ["purchases.view", "Purchases — View"],
+  ["purchases.create", "Purchases — Create"],
+  ["purchases.edit", "Purchases — Edit"],
+  ["purchases.delete", "Purchases — Delete"],
+  ["purchases.export", "Purchases — Export"],
+  ["sales.view", "Sales — View"],
+  ["sales.create", "Sales — Create"],
+  ["sales.edit", "Sales — Edit"],
+  ["sales.delete", "Sales — Delete"],
+  ["sales.export", "Sales — Export"],
+  ["returns.view", "Returns — View"],
+  ["returns.create", "Returns — Create"],
+  ["returns.edit", "Returns — Edit"],
+  ["returns.delete", "Returns — Delete"],
+  ["returns.export", "Returns — Export"],
+  ["customers.view", "Customers — View"],
+  ["customers.create", "Customers — Create"],
+  ["customers.edit", "Customers — Edit"],
+  ["customers.delete", "Customers — Delete"],
+  ["customers.export", "Customers — Export"],
+  ["suppliers.view", "Suppliers — View"],
+  ["suppliers.create", "Suppliers — Create"],
+  ["suppliers.edit", "Suppliers — Edit"],
+  ["suppliers.delete", "Suppliers — Delete"],
+  ["suppliers.export", "Suppliers — Export"],
+  ["expenses.view", "Expenses — View"],
+  ["expenses.create", "Expenses — Create"],
+  ["expenses.edit", "Expenses — Edit"],
+  ["expenses.delete", "Expenses — Delete"],
+  ["expenses.export", "Expenses — Export"],
+  ["reports.view", "Reports — View"],
+  ["reports.create", "Reports — Create"],
+  ["reports.edit", "Reports — Edit"],
+  ["reports.delete", "Reports — Delete"],
+  ["reports.export", "Reports — Export"],
+  ["notifications.view", "Notifications — View"],
+  ["notifications.create", "Notifications — Create"],
+  ["notifications.edit", "Notifications — Edit"],
+  ["notifications.delete", "Notifications — Delete"],
+  ["notifications.export", "Notifications — Export"],
+  ["users.view", "Users & Roles — View"],
+  ["users.create", "Users & Roles — Create"],
+  ["users.edit", "Users & Roles — Edit"],
+  ["users.delete", "Users & Roles — Delete"],
+  ["users.export", "Users & Roles — Export"],
+  ["branches.view", "Branches — View"],
+  ["branches.create", "Branches — Create"],
+  ["branches.edit", "Branches — Edit"],
+  ["branches.delete", "Branches — Delete"],
+  ["branches.export", "Branches — Export"],
+  ["settings.view", "Settings — View"],
+  ["settings.create", "Settings — Create"],
+  ["settings.edit", "Settings — Edit"],
+  ["settings.delete", "Settings — Delete"],
+  ["settings.export", "Settings — Export"],
+  ["auditLogs.view", "Audit Logs — View"],
+  ["auditLogs.create", "Audit Logs — Create"],
+  ["auditLogs.edit", "Audit Logs — Edit"],
+  ["auditLogs.delete", "Audit Logs — Delete"],
+  ["auditLogs.export", "Audit Logs — Export"],
 ] as const;
 
 const emptyUserForm = {
   name: "",
   email: "",
   phone: "",
+  password: "",
   roleId: "",
   branchId: "",
   status:
@@ -576,6 +638,11 @@ export default function UsersPage() {
       return;
     }
 
+    if (!editingUser && userForm.password.length < 8) {
+      window.alert("Password must be at least 8 characters.");
+      return;
+    }
+
     if (!userForm.roleId) {
       window.alert(
         "Select a role."
@@ -611,6 +678,8 @@ export default function UsersPage() {
 
               phone:
                 userForm.phone.trim(),
+
+              password: userForm.password,
 
               roleId: Number(
                 userForm.roleId
@@ -1402,6 +1471,13 @@ function UserModal({
               })
             )
           }
+        />
+
+        <Field
+          label={editing ? "New Password (optional)" : "Password *"}
+          value={form.password}
+          type="password"
+          onChange={(value) => setForm((current) => ({ ...current, password: value }))}
         />
 
         <SelectField

@@ -1094,3 +1094,18 @@ model ReturnItem {
 
   createdAt     TimestamptzString @default(now())
 }
+// ======================================================
+// OUTBOUND WHATSAPP / SMS MESSAGE LOG
+// ======================================================
+model MessageLog {
+  id          Int               @id @default(autoincrement())
+  channel     String
+  recipient   String
+  template    String            @default("")
+  message     String
+  status      String            @default("PENDING")
+  providerId  String            @default("")
+  error       String            @default("")
+  createdAt   TimestamptzString @default(now())
+  updatedAt   temporal.updatedAtString()
+}

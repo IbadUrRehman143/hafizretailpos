@@ -1,0 +1,1 @@
+const required=['DATABASE_URL','AUTH_SECRET'];let bad=false;for(const k of required){if(!process.env[k]){console.error(`Missing ${k}`);bad=true}}if(process.env.AUTH_SECRET&&process.env.AUTH_SECRET.length<32){console.error('AUTH_SECRET must be >= 32 chars');bad=true}if(bad)process.exit(1);console.log('Security environment check passed.');

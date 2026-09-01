@@ -1,0 +1,1 @@
+import {spawnSync} from 'node:child_process';const file=process.argv[2];if(!file||!process.env.DATABASE_URL)throw new Error('Usage: DATABASE_URL=... npm run db:restore -- backups/file.dump');const r=spawnSync('pg_restore',['--clean','--if-exists','--no-owner','--dbname',process.env.DATABASE_URL,file],{stdio:'inherit'});process.exit(r.status??0);

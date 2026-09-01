@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/src/prisma/db";
+import { hashPassword } from "@/src/lib/password";
 
 function validEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -88,6 +89,8 @@ export async function POST(
     const phone =
       String(body.phone || "").trim();
 
+    const password = String(body.password || "");
+
     const status =
       String(body.status || "Active") ===
       "Inactive"
@@ -101,12 +104,12 @@ export async function POST(
         ? Number(body.branchId)
         : null;
 
-    if (!name || !email || !phone) {
+    if (!name || !email || !phone || password.length < 8) {
       return NextResponse.json(
         {
           success: false,
           message:
-            "Name, email and phone are required.",
+            "Name, email, phone and an 8+ character password are required.",
         },
         { status: 400 }
       );
@@ -182,6 +185,8 @@ export async function POST(
       }
     }
 
+    const passwordHash = await hashPassword(password);
+
     const user =
       await db.transaction(async (tx) => {
         const created =
@@ -189,7 +194,7 @@ export async function POST(
             name,
             email,
             phone,
-            passwordHash: "",
+            passwordHash,
             status,
             roleId,
             branchId,

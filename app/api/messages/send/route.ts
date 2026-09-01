@@ -1,0 +1,3 @@
+import { NextRequest,NextResponse } from "next/server";
+import { sendBusinessMessage, type MessageTemplate } from "@/src/lib/messaging";
+export async function POST(req:NextRequest){try{const b=await req.json();const allowed=["sale_confirmation","invoice","payment_confirmation","payment_reminder"];if(!allowed.includes(b.template))return NextResponse.json({success:false,message:"Invalid message template."},{status:400});const result=await sendBusinessMessage({to:String(b.to||""),template:b.template as MessageTemplate,values:b.values||{},fallbackToSms:b.fallbackToSms!==false});return NextResponse.json(result,{status:result.success?200:502});}catch(e){return NextResponse.json({success:false,message:e instanceof Error?e.message:"Send failed"},{status:500})}}
