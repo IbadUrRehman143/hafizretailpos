@@ -67,7 +67,10 @@ export async function GET(
       ),
     });
   } catch (error) {
-    console.error("GET /api/categories/[id] error:", error);
+    console.error(
+      "GET /api/categories/[id] error:",
+      error
+    );
 
     return NextResponse.json(
       {
@@ -132,12 +135,15 @@ export async function PUT(
     const allCategories =
       await db.orm.public.Category.all();
 
-    const duplicate = allCategories.find(
-      (category) =>
-        Number(category.id) !== id &&
-        String(category.name).trim().toLowerCase() ===
-          name.toLowerCase()
-    );
+    const duplicate =
+      allCategories.find(
+        (category) =>
+          Number(category.id) !== id &&
+          String(category.name)
+            .trim()
+            .toLowerCase() ===
+            name.toLowerCase()
+      );
 
     if (duplicate) {
       return NextResponse.json(
@@ -149,48 +155,43 @@ export async function PUT(
       );
     }
 
-    const result = await db.transaction(async (tx) => {
-      // ----------------------------------------
-      // Update category
-      // ----------------------------------------
+    const result =
+      await db.transaction(async (tx) => {
+        const updatedCategory =
+          await tx.orm.public.Category.where({
+            id,
+          }).update({
+            name,
+            description,
+            status,
+          });
 
-      const updatedCategory =
-        await tx.orm.public.Category.where({
-          id,
-        }).update({
-          name,
-          description,
-          status,
-        });
+        if (!updatedCategory) {
+          throw new Error(
+            "Category update failed."
+          );
+        }
 
-      // ----------------------------------------
-      // Find linked products
-      // ----------------------------------------
+        const products =
+          await tx.orm.public.Product.where({
+            categoryId: id,
+          }).all();
 
-      const products =
-        await tx.orm.public.Product.where({
-          categoryId: id,
-        }).all();
+        for (const product of products) {
+          await tx.orm.public.Product.where({
+            id: product.id,
+          }).update({
+            categoryId: id,
+            category: name,
+            categoryName: name,
+          });
+        }
 
-      // ----------------------------------------
-      // Synchronize Product snapshots
-      // ----------------------------------------
-
-      for (const product of products) {
-        await tx.orm.public.Product.where({
-          id: product.id,
-        }).update({
-          categoryId: id,
-          category: name,
-          categoryName: name,
-        });
-      }
-
-      return {
-        category: updatedCategory,
-        syncedProducts: products.length,
-      };
-    });
+        return {
+          category: updatedCategory,
+          syncedProducts: products.length,
+        };
+      });
 
     return NextResponse.json({
       message: "Category updated successfully.",
@@ -198,7 +199,10 @@ export async function PUT(
       syncedProducts: result.syncedProducts,
     });
   } catch (error) {
-    console.error("PUT /api/categories/[id] error:", error);
+    console.error(
+      "PUT /api/categories/[id] error:",
+      error
+    );
 
     return NextResponse.json(
       {
@@ -246,7 +250,9 @@ export async function DELETE(
     }
 
     if (
-      String(category.name).trim().toLowerCase() === "other"
+      String(category.name)
+        .trim()
+        .toLowerCase() === "other"
     ) {
       return NextResponse.json(
         {
@@ -257,103 +263,87 @@ export async function DELETE(
       );
     }
 
-    const result = await db.transaction(async (tx) => {
-      // ----------------------------------------
-      // Products currently using this category
-      // ----------------------------------------
+    const result =
+      await db.transaction(async (tx) => {
+        const products =
+          await tx.orm.public.Product.where({
+            categoryId: id,
+          }).all();
 
-      const products =
-        await tx.orm.public.Product.where({
-          categoryId: id,
-        }).all();
-
-      // ----------------------------------------
-      // Move products safely to Other
-      // ----------------------------------------
-
-      let otherCategory =
-        await tx.orm.public.Category.where({
-          name: "Other",
-        }).first();
-
-      // RC-safe fallback because string equality
-      // can be inconsistent in some contracts.
-      if (!otherCategory) {
-        const categories =
-          await tx.orm.public.Category.all();
-
-        otherCategory = categories.find(
-          (item) =>
-            String(item.name).trim().toLowerCase() ===
-            "other"
-        );
-      }
-
-      if (!otherCategory) {
-        otherCategory =
-          await tx.orm.public.Category.create({
+        let otherCategory =
+          await tx.orm.public.Category.where({
             name: "Other",
-            description: "Default category",
-            status: "Active",
-          });
-      } else if (otherCategory.status !== "Active") {
-        otherCategory =
+          }).first();
+
+        if (!otherCategory) {
+          const categories =
+            await tx.orm.public.Category.all();
+
+          otherCategory =
+            categories.find(
+              (item) =>
+                String(item.name)
+                  .trim()
+                  .toLowerCase() ===
+                "other"
+            ) ?? null;
+        }
+
+        if (!otherCategory) {
+          otherCategory =
+            await tx.orm.public.Category.create({
+              name: "Other",
+              description: "Default category",
+              status: "Active",
+            });
+        }
+
+        if (
+          otherCategory.status !== "Active"
+        ) {
           await tx.orm.public.Category.where({
             id: otherCategory.id,
           }).update({
             status: "Active",
           });
-      }
+        }
 
-      // ----------------------------------------
-      // Remove Product → Subcategory relation
-      // before category/subcategories deletion.
-      // ----------------------------------------
+        const otherCategoryId =
+          otherCategory.id;
 
-      for (const product of products) {
-        await tx.orm.public.Product.where({
-          id: product.id,
-        }).update({
-          categoryId: otherCategory.id,
-          category: "Other",
-          categoryName: "Other",
+        for (const product of products) {
+          await tx.orm.public.Product.where({
+            id: product.id,
+          }).update({
+            categoryId: otherCategoryId,
+            category: "Other",
+            categoryName: "Other",
+            subcategoryId: null,
+            subcategoryName: "",
+          });
+        }
 
-          subcategoryId: null,
-          subcategoryName: "",
-        });
-      }
+        const subcategories =
+          await tx.orm.public.Subcategory.where({
+            categoryId: id,
+          }).all();
 
-      // ----------------------------------------
-      // Explicitly delete subcategories
-      //
-      // Even though schema has Cascade,
-      // explicit delete keeps behavior clear.
-      // ----------------------------------------
+        for (const subcategory of subcategories) {
+          await tx.orm.public.Subcategory.where({
+            id: subcategory.id,
+          }).delete();
+        }
 
-      const subcategories =
-        await tx.orm.public.Subcategory.where({
-          categoryId: id,
-        }).all();
-
-      for (const subcategory of subcategories) {
-        await tx.orm.public.Subcategory.where({
-          id: subcategory.id,
+        await tx.orm.public.Category.where({
+          id,
         }).delete();
-      }
 
-      // ----------------------------------------
-      // Delete category
-      // ----------------------------------------
-
-      await tx.orm.public.Category.where({
-        id,
-      }).delete();
-
-      return {
-        movedProducts: products.length,
-        deletedSubcategories: subcategories.length,
-      };
-    });
+        return {
+          movedProducts: products.length,
+          deletedSubcategories:
+            subcategories.length,
+        };
+      });
 
     return NextResponse.json({
       message:
@@ -367,7 +357,8 @@ export async function DELETE(
       deletedSubcategories:
         result.deletedSubcategories,
 
-      movedProducts: result.movedProducts,
+      movedProducts:
+        result.movedProducts,
     });
   } catch (error) {
     console.error(
