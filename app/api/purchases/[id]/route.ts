@@ -685,37 +685,29 @@ export async function PUT(
           ========================= */
 
           const updatedPurchase =
-            await tx.orm.public.Purchase
-              .where({
-                id: purchaseId,
-              })
-              .update({
-                supplierId:
-                  supplier.id,
+  await tx.orm.public.Purchase
+    .where({
+      id: purchaseId,
+    })
+    .update({
+      supplierId: supplier.id,
+      supplierName: supplier.name,
+      supplierPhone: supplier.phone || "",
+      supplierBillNo,
+      purchaseDate,
+      subtotal,
+      paidAmount,
+      remainingBalance,
+      paymentMethod,
+      status,
+      notes,
+    });
 
-                supplierName:
-                  supplier.name,
-
-                supplierPhone:
-                  supplier.phone ||
-                  "",
-
-                supplierBillNo,
-
-                purchaseDate,
-
-                subtotal,
-
-                paidAmount,
-
-                remainingBalance,
-
-                paymentMethod,
-
-                status,
-
-                notes,
-              });
+if (!updatedPurchase) {
+  throw new Error(
+    "Purchase update failed."
+  );
+}
 
           /* =========================
              CREATE NEW ITEMS +

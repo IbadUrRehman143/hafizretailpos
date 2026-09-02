@@ -368,14 +368,18 @@ export default function InventoryPage() {
         history.sort(
           (a, b) => {
             const first =
-              new Date(
-                a.createdAt
-              ).getTime();
+              a.createdAt
+                ? new Date(
+                    a.createdAt
+                  ).getTime()
+                : 0;
 
             const second =
-              new Date(
-                b.createdAt
-              ).getTime();
+              b.createdAt
+                ? new Date(
+                    b.createdAt
+                  ).getTime()
+                : 0;
 
             if (
               Number.isNaN(first) ||
