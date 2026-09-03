@@ -8,6 +8,14 @@ import {
   type FormEvent,
 } from "react";
 
+import {
+  useRouter,
+} from "next/navigation";
+
+import {
+  ArrowLeft,
+} from "lucide-react";
+
 import ProductTable from "./productTable";
 import ProductModal from "./productModal";
 import CategoryManager from "./categoryManager";
@@ -29,6 +37,9 @@ import {
 } from "./productUtils";
 
 export default function ProductsPage() {
+  const router =
+    useRouter();
+
   // ====================================================
   // DATA
   // ====================================================
@@ -892,24 +903,45 @@ export default function ProductsPage() {
   // ====================================================
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="min-h-screen w-full min-w-0 overflow-x-hidden bg-slate-50 px-3 py-4 sm:px-4 sm:py-5 md:px-6 md:py-6">
+      <div className="mx-auto w-full min-w-0 max-w-7xl space-y-4 sm:space-y-5 lg:space-y-6">
 
         {/* HEADER */}
 
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Products
-            </h1>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 
-            <p className="mt-1 text-sm text-slate-500">
-              Manage products, categories,
-              subcategories and opening stock.
-            </p>
+          <div className="flex min-w-0 items-start gap-3">
+
+            <button
+              type="button"
+              onClick={() =>
+                router.push(
+                  "/dashboard"
+                )
+              }
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+              aria-label="Back to Dashboard"
+              title="Back to Dashboard"
+            >
+              <ArrowLeft
+                size={19}
+              />
+            </button>
+
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
+                Products
+              </h1>
+
+              <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
+                Manage products, categories,
+                subcategories and opening stock.
+              </p>
+            </div>
+
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:w-auto">
             <button
               type="button"
               onClick={() =>
@@ -917,7 +949,7 @@ export default function ProductsPage() {
                   true
                 )
               }
-              className="rounded-xl border bg-white px-5 py-3 text-sm font-semibold"
+              className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 lg:w-auto"
             >
               Categories & Subcategories
             </button>
@@ -927,16 +959,17 @@ export default function ProductsPage() {
               onClick={
                 openAddProduct
               }
-              className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white"
+              className="min-h-11 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 lg:w-auto"
             >
               + Add Product
             </button>
           </div>
+
         </div>
 
         {/* STATS */}
 
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">
           <StatCard
             title="Active Products"
             value={
@@ -980,7 +1013,7 @@ export default function ProductsPage() {
 
         {/* FILTERS */}
 
-        <div className="grid gap-3 rounded-2xl border bg-white p-4 md:grid-cols-[1fr_auto_auto]">
+        <div className="grid min-w-0 grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_220px_180px]">
           <input
             value={search}
             onChange={(
@@ -992,7 +1025,7 @@ export default function ProductsPage() {
               )
             }
             placeholder="Search product, category, subcategory, brand..."
-            className="rounded-xl border px-4 py-3"
+            className="h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-slate-400"
           />
 
           <select
@@ -1007,7 +1040,7 @@ export default function ProductsPage() {
                   .value
               )
             }
-            className="rounded-xl border px-4"
+            className="h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-slate-400"
           >
             <option value="All">
               All Categories
@@ -1043,7 +1076,7 @@ export default function ProductsPage() {
                   .value
               )
             }
-            className="rounded-xl border px-4"
+            className="h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-slate-400"
           >
             <option value="Active">
               Active
@@ -1061,32 +1094,34 @@ export default function ProductsPage() {
 
         {/* TABLE */}
 
-        <ProductTable
-          products={
-            filteredProducts
-          }
-          loading={
-            loading
-          }
-          deletingId={
-            deletingId
-          }
-          onEdit={
-            editProduct
-          }
-          onDelete={(id) =>
-            void deleteProduct(
-              id
-            )
-          }
-          onRestore={(
-            product
-          ) =>
-            void restoreProduct(
+        <div className="w-full min-w-0 overflow-x-auto">
+          <ProductTable
+            products={
+              filteredProducts
+            }
+            loading={
+              loading
+            }
+            deletingId={
+              deletingId
+            }
+            onEdit={
+              editProduct
+            }
+            onDelete={(id) =>
+              void deleteProduct(
+                id
+              )
+            }
+            onRestore={(
               product
-            )
-          }
-        />
+            ) =>
+              void restoreProduct(
+                product
+              )
+            }
+          />
+        </div>
       </div>
 
       {/* PRODUCT MODAL */}
@@ -1165,12 +1200,12 @@ function StatCard({
   value: number;
 }) {
   return (
-    <div className="rounded-2xl border bg-white p-5 shadow-sm">
-      <p className="text-sm text-slate-500">
+    <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:rounded-2xl sm:p-5">
+      <p className="text-xs leading-5 text-slate-500 sm:text-sm">
         {title}
       </p>
 
-      <p className="mt-2 text-2xl font-bold">
+      <p className="mt-1.5 text-xl font-bold text-slate-900 sm:mt-2 sm:text-2xl">
         {value}
       </p>
     </div>

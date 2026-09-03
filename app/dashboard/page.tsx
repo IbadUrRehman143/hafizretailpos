@@ -261,29 +261,29 @@ function OverallCard({
   return (
     <Link
       href={href}
-      className="group block rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
+      className="group block h-full rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md sm:p-5"
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-slate-500">
+          <p className="text-xs font-medium text-slate-500 sm:text-sm">
             {title}
           </p>
 
-          <h3 className="mt-2 text-2xl font-bold text-slate-900">
+          <h3 className="mt-1.5 break-words text-xl font-bold leading-tight text-slate-900 sm:mt-2 sm:text-2xl">
             {value}
           </h3>
 
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-1.5 text-[11px] leading-5 text-slate-500 sm:mt-2 sm:text-xs">
             {description}
           </p>
         </div>
 
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition group-hover:bg-blue-600 group-hover:text-white">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition group-hover:bg-blue-600 group-hover:text-white sm:h-11 sm:w-11">
           {icon}
         </div>
       </div>
 
-      <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-blue-600">
+      <div className="mt-3 flex items-center gap-1 text-[11px] font-semibold text-blue-600 sm:mt-4 sm:text-xs">
         Open {title}
 
         <ArrowRight
@@ -760,25 +760,25 @@ export default async function DashboardPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-4 sm:p-6 lg:p-8">
+      <div className="dashboard-page-shell mx-auto w-full min-w-0 max-w-[1600px] overflow-x-hidden px-3 py-4 sm:px-5 sm:py-6 md:px-6 lg:px-8 lg:py-8">
         {/* =============================================
             HEADER
         ============================================= */}
 
-        <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <div className="dashboard-top-row mb-6 flex flex-col justify-between gap-4 sm:mb-8 sm:flex-row sm:items-center">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl lg:text-3xl">
               Dashboard
             </h1>
 
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
               Hafiz Retail POS business overview.
             </p>
           </div>
 
           <Link
             href="/dashboard/invoice"
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+            className="dashboard-new-sale inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 sm:w-auto"
           >
             <ShoppingCart
               size={18}
@@ -793,16 +793,16 @@ export default async function DashboardPage() {
         ============================================= */}
 
         <div className="mb-4">
-          <h2 className="text-lg font-bold text-slate-900">
+          <h2 className="text-base font-bold text-slate-900 sm:text-lg">
             Today
           </h2>
 
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
             Aaj ki business performance.
           </p>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="dashboard-stat-grid grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4 xl:gap-5">
           {/* TODAY SALES */}
 
           <Link
@@ -912,17 +912,17 @@ export default async function DashboardPage() {
             OVERALL BUSINESS
         ============================================= */}
 
-        <div className="mb-4 mt-9">
-          <h2 className="text-lg font-bold text-slate-900">
+        <div className="mb-4 mt-7 sm:mt-9">
+          <h2 className="text-base font-bold text-slate-900 sm:text-lg">
             Overall Business
           </h2>
 
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
             Poore system ka current data.
           </p>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="dashboard-stat-grid grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4 xl:gap-5">
           {/* INVENTORY */}
 
           <OverallCard
@@ -992,21 +992,21 @@ export default async function DashboardPage() {
             SALES OVERVIEW
         ============================================= */}
 
-        <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <div className="mt-6 min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:mt-8 sm:p-5 lg:p-6">
+          <div className="dashboard-sales-head flex flex-col justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">
+              <h2 className="text-base font-semibold text-slate-900 sm:text-lg">
                 Sales Overview
               </h2>
 
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
                 Real sales performance over the last 7 days.
               </p>
             </div>
 
             <Link
               href="/dashboard/sales"
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="dashboard-sales-link inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 sm:w-auto sm:text-sm"
             >
               View Sales
 
@@ -1018,8 +1018,8 @@ export default async function DashboardPage() {
 
           {/* CHART */}
 
-          <div className="mt-8">
-            <div className="flex h-64 items-end gap-3 rounded-xl bg-slate-50 p-5">
+          <div className="mt-5 sm:mt-8">
+            <div className="flex h-52 items-end gap-1.5 overflow-hidden rounded-xl bg-slate-50 p-3 sm:h-60 sm:gap-2 sm:p-4 md:h-64 md:gap-3 md:p-5">
               {last7Days.map(
                 (day) => {
                   const percentage =
@@ -1039,7 +1039,7 @@ export default async function DashboardPage() {
                       }
                       className="flex h-full flex-1 flex-col items-center justify-end"
                     >
-                      <p className="mb-2 hidden text-xs font-semibold text-slate-500 md:block">
+                      <p className="mb-2 hidden max-w-full truncate text-[10px] font-semibold text-slate-500 lg:block xl:text-xs">
                         {day.total > 0
                           ? formatCurrency(
                               day.total
@@ -1049,7 +1049,7 @@ export default async function DashboardPage() {
 
                       <div className="flex h-full w-full items-end justify-center">
                         <div
-                          className="w-full max-w-16 rounded-t-lg bg-blue-500 transition hover:bg-blue-600"
+                          className="w-full max-w-10 rounded-t-md bg-blue-500 transition hover:bg-blue-600 sm:max-w-12 md:max-w-16 md:rounded-t-lg"
                           style={{
                             height: `${percentage}%`,
                           }}
@@ -1059,7 +1059,7 @@ export default async function DashboardPage() {
                         />
                       </div>
 
-                      <span className="mt-3 text-xs font-semibold text-slate-500">
+                      <span className="mt-2 text-[10px] font-semibold text-slate-500 sm:mt-3 sm:text-xs">
                         {day.label}
                       </span>
                     </div>
@@ -1074,13 +1074,13 @@ export default async function DashboardPage() {
             RECENT SALES + LOW STOCK
         ============================================= */}
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div className="dashboard-bottom-grid mt-5 grid min-w-0 grid-cols-1 gap-4 sm:mt-6 sm:gap-6 lg:grid-cols-2">
           {/* RECENT SALES */}
 
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-100 p-5">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-4 sm:items-center sm:p-5">
               <div>
-                <h2 className="font-bold text-slate-900">
+                <h2 className="text-sm font-bold text-slate-900 sm:text-base">
                   Recent Sales
                 </h2>
 
@@ -1091,7 +1091,7 @@ export default async function DashboardPage() {
 
               <Link
                 href="/dashboard/sales"
-                className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                className="shrink-0 text-xs font-semibold text-blue-600 hover:text-blue-700 sm:text-sm"
               >
                 View All
               </Link>
@@ -1118,10 +1118,10 @@ export default async function DashboardPage() {
                         invoice.id
                       )}
                       href="/dashboard/sales"
-                      className="flex items-center justify-between gap-4 p-4 transition hover:bg-slate-50"
+                      className="flex items-center justify-between gap-3 p-3.5 transition hover:bg-slate-50 sm:gap-4 sm:p-4"
                     >
                       <div className="min-w-0">
-                        <p className="font-semibold text-slate-900">
+                        <p className="text-sm font-semibold text-slate-900 sm:text-base">
                           {String(
                             invoice.invoiceNumber
                           )}
@@ -1142,7 +1142,7 @@ export default async function DashboardPage() {
                       </div>
 
                       <div className="text-right">
-                        <p className="font-bold text-slate-900">
+                        <p className="text-sm font-bold text-slate-900 sm:text-base">
                           {formatCurrency(
                             numberValue(
                               invoice.total
@@ -1168,9 +1168,9 @@ export default async function DashboardPage() {
           {/* LOW STOCK */}
 
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-100 p-5">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-4 sm:items-center sm:p-5">
               <div>
-                <h2 className="font-bold text-slate-900">
+                <h2 className="text-sm font-bold text-slate-900 sm:text-base">
                   Low Stock
                 </h2>
 
@@ -1181,7 +1181,7 @@ export default async function DashboardPage() {
 
               <Link
                 href="/dashboard/inventory"
-                className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                className="shrink-0 text-xs font-semibold text-blue-600 hover:text-blue-700 sm:text-sm"
               >
                 View Inventory
               </Link>
@@ -1212,17 +1212,17 @@ export default async function DashboardPage() {
                         product.id
                       }
                       href="/dashboard/inventory"
-                      className="flex items-center justify-between gap-4 p-4 transition hover:bg-slate-50"
+                      className="flex items-center justify-between gap-3 p-3.5 transition hover:bg-slate-50 sm:gap-4 sm:p-4"
                     >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+                      <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600 sm:h-10 sm:w-10 sm:rounded-xl">
                           <AlertTriangle
                             size={19}
                           />
                         </div>
 
                         <div className="min-w-0">
-                          <p className="truncate font-semibold text-slate-900">
+                          <p className="truncate text-sm font-semibold text-slate-900 sm:text-base">
                             {
                               product.name
                             }
@@ -1235,7 +1235,7 @@ export default async function DashboardPage() {
                       </div>
 
                       <div className="text-right">
-                        <p className="font-bold text-amber-600">
+                        <p className="whitespace-nowrap text-sm font-bold text-amber-600 sm:text-base">
                           {product.stock.toLocaleString(
                             "en-PK",
                             {

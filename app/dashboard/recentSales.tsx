@@ -34,53 +34,53 @@ const sales: Sale[] = [
 
 export default function RecentSales() {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="w-full min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 lg:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900">
+      <div className="flex items-start justify-between gap-3 sm:items-center sm:gap-4">
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-slate-900 sm:text-lg">
             Recent Sales
           </h2>
 
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
             Latest transactions from your store.
           </p>
         </div>
 
         <button
           type="button"
-          className="text-sm font-semibold text-blue-600 transition hover:text-blue-700"
+          className="shrink-0 rounded-lg px-2 py-1.5 text-xs font-semibold text-blue-600 transition hover:bg-blue-50 hover:text-blue-700 sm:px-3 sm:text-sm"
         >
           View All
         </button>
       </div>
 
       {/* Sales List */}
-      <div className="mt-6 divide-y divide-slate-100">
+      <div className="mt-4 divide-y divide-slate-100 sm:mt-5 lg:mt-6">
         {sales.map((sale) => (
           <div
             key={sale.invoice}
-            className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"
+            className="flex min-w-0 items-center justify-between gap-2.5 py-3.5 first:pt-0 last:pb-0 sm:gap-4 sm:py-4"
           >
             {/* Customer */}
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-800">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-slate-800 sm:text-[15px]">
                 {sale.invoice}
               </p>
 
-              <p className="mt-1 truncate text-xs text-slate-400">
+              <p className="mt-0.5 truncate text-[11px] text-slate-400 sm:mt-1 sm:text-xs">
                 {sale.customer}
               </p>
             </div>
 
             {/* Amount + Status */}
-            <div className="flex shrink-0 items-center gap-4">
-              <span className="text-sm font-semibold text-slate-800">
+            <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-4">
+              <span className="whitespace-nowrap text-xs font-semibold text-slate-800 sm:text-sm">
                 {sale.amount}
               </span>
 
               <span
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-semibold sm:text-xs ${
                   sale.status === "Paid"
                     ? "bg-emerald-50 text-emerald-600"
                     : "bg-amber-50 text-amber-600"

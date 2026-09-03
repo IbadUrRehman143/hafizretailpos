@@ -28,6 +28,10 @@ import { useRouter } from "next/navigation";
 // TYPES
 // ======================================================
 
+type HeaderProps = {
+  onMenuClick: () => void;
+};
+
 type SearchResult = {
   id: string;
   recordId: number;
@@ -55,22 +59,28 @@ type Notification = {
 // HEADER
 // ======================================================
 
-export default function Header() {
+export default function Header({
+  onMenuClick,
+}: HeaderProps) {
   const router = useRouter();
 
   // ====================================================
   // PROFILE
   // ====================================================
 
-  const [profileOpen, setProfileOpen] =
-    useState(false);
+  const [
+    profileOpen,
+    setProfileOpen,
+  ] = useState(false);
 
   // ====================================================
   // SEARCH
   // ====================================================
 
-  const [search, setSearch] =
-    useState("");
+  const [
+    search,
+    setSearch,
+  ] = useState("");
 
   const [
     searchResults,
@@ -135,7 +145,9 @@ export default function Header() {
   const loadNotifications =
     async () => {
       try {
-        setNotificationLoading(true);
+        setNotificationLoading(
+          true
+        );
 
         const response =
           await fetch(
@@ -171,7 +183,9 @@ export default function Header() {
 
         setNotifications([]);
       } finally {
-        setNotificationLoading(false);
+        setNotificationLoading(
+          false
+        );
       }
     };
 
@@ -188,9 +202,12 @@ export default function Header() {
   // ====================================================
 
   useEffect(() => {
-    const value = search.trim();
+    const value =
+      search.trim();
 
-    if (value.length < 2) {
+    if (
+      value.length < 2
+    ) {
       setSearchResults([]);
       setSearchLoading(false);
 
@@ -204,7 +221,9 @@ export default function Header() {
       window.setTimeout(
         async () => {
           try {
-            setSearchLoading(true);
+            setSearchLoading(
+              true
+            );
 
             const response =
               await fetch(
@@ -234,7 +253,9 @@ export default function Header() {
                   : []
               );
             } else {
-              setSearchResults([]);
+              setSearchResults(
+                []
+              );
             }
           } catch (error) {
             if (
@@ -251,16 +272,22 @@ export default function Header() {
               error
             );
 
-            setSearchResults([]);
+            setSearchResults(
+              []
+            );
           } finally {
-            setSearchLoading(false);
+            setSearchLoading(
+              false
+            );
           }
         },
         350
       );
 
     return () => {
-      window.clearTimeout(timer);
+      window.clearTimeout(
+        timer
+      );
 
       controller.abort();
     };
@@ -301,7 +328,9 @@ export default function Header() {
           target
         )
       ) {
-        setNotificationOpen(false);
+        setNotificationOpen(
+          false
+        );
       }
     };
 
@@ -329,7 +358,9 @@ export default function Header() {
     setSearch("");
     setSearchResults([]);
 
-    router.push(result.href);
+    router.push(
+      result.href
+    );
   };
 
   // ====================================================
@@ -409,13 +440,16 @@ export default function Header() {
   const handleNotificationOpen =
     () => {
       setNotificationOpen(
-        (previous) => !previous
+        (previous) =>
+          !previous
       );
 
       setProfileOpen(false);
       setSearchOpen(false);
 
-      if (!notificationOpen) {
+      if (
+        !notificationOpen
+      ) {
         loadNotifications();
       }
     };
@@ -429,18 +463,18 @@ export default function Header() {
       notification: Notification
     ) => {
       try {
-        if (!notification.isRead) {
+        if (
+          !notification.isRead
+        ) {
           const response =
             await fetch(
               `/api/notifications/${notification.id}`,
               {
                 method: "PUT",
-
                 headers: {
                   "Content-Type":
                     "application/json",
                 },
-
                 body: JSON.stringify({
                   isRead: true,
                 }),
@@ -552,19 +586,6 @@ export default function Header() {
   };
 
   // ====================================================
-  // MENU BUTTON
-  // ====================================================
-
-  const handleMenuClick =
-    () => {
-      window.dispatchEvent(
-        new CustomEvent(
-          "toggle-sidebar"
-        )
-      );
-    };
-
-  // ====================================================
   // PROFILE
   // ====================================================
 
@@ -598,15 +619,6 @@ export default function Header() {
     () => {
       setProfileOpen(false);
 
-      /*
-        Authentication abhi connect
-        nahi hai.
-
-        Jab login/auth module banega,
-        yahan real logout API/session
-        clear karenge.
-      */
-
       console.log(
         "Logout requires authentication setup."
       );
@@ -617,35 +629,30 @@ export default function Header() {
   // ====================================================
 
   return (
-    <header className="sticky top-0 z-40 h-16 border-b border-slate-200 bg-white">
-      <div className="flex h-full items-center justify-between px-4 sm:px-6">
+    <header className="sticky top-0 z-30 h-14 w-full border-b border-slate-200 bg-white sm:h-16">
+      <div className="flex h-full w-full min-w-0 items-center px-3 sm:px-5 lg:px-6">
 
-        {/* ============================================= */}
+        {/* =========================================== */}
         {/* LEFT */}
-        {/* ============================================= */}
+        {/* =========================================== */}
 
-        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-
-          {/* MENU */}
-
+        <div className="flex min-w-0 flex-1 items-center">
           <button
             type="button"
             onClick={
-              handleMenuClick
+              onMenuClick
             }
-            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
             aria-label="Toggle sidebar"
           >
             <Menu size={20} />
           </button>
 
-          {/* =========================================== */}
           {/* SEARCH */}
-          {/* =========================================== */}
 
           <div
             ref={searchRef}
-            className="relative hidden w-72 md:block lg:w-96"
+            className="relative ml-3 hidden min-w-0 flex-1 md:block md:max-w-sm lg:max-w-md xl:max-w-lg"
           >
             <Search
               size={18}
@@ -655,42 +662,53 @@ export default function Header() {
             <input
               type="search"
               value={search}
-              onChange={(event) => {
+              onChange={(
+                event
+              ) => {
                 setSearch(
-                  event.target.value
+                  event.target
+                    .value
                 );
 
-                setSearchOpen(true);
+                setSearchOpen(
+                  true
+                );
 
-                setProfileOpen(false);
+                setProfileOpen(
+                  false
+                );
 
                 setNotificationOpen(
                   false
                 );
               }}
               onFocus={() => {
-                setSearchOpen(true);
+                setSearchOpen(
+                  true
+                );
 
-                setProfileOpen(false);
+                setProfileOpen(
+                  false
+                );
 
                 setNotificationOpen(
                   false
                 );
               }}
               placeholder="Search products, customers, invoices..."
-              className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-10 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+              className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-10 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 sm:text-sm"
             />
-
-            {/* CLEAR SEARCH */}
 
             {search && (
               <button
                 type="button"
                 onClick={() => {
                   setSearch("");
+
                   setSearchResults(
                     []
                   );
+
                   setSearchOpen(
                     false
                   );
@@ -702,25 +720,17 @@ export default function Header() {
               </button>
             )}
 
-            {/* ========================================= */}
-            {/* SEARCH DROPDOWN */}
-            {/* ========================================= */}
-
             {searchOpen &&
-              search.trim().length >=
+              search.trim()
+                .length >=
                 2 && (
-                <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-[430px] overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
-
-                  {/* LOADING */}
-
+                <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-[min(430px,70vh)] overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
                   {searchLoading && (
                     <div className="px-4 py-8 text-center text-sm text-slate-500">
                       Searching
                       database...
                     </div>
                   )}
-
-                  {/* NO RESULTS */}
 
                   {!searchLoading &&
                     searchResults.length ===
@@ -745,8 +755,6 @@ export default function Header() {
                         </p>
                       </div>
                     )}
-
-                  {/* RESULTS */}
 
                   {!searchLoading &&
                     searchResults.length >
@@ -783,7 +791,7 @@ export default function Header() {
                                 </div>
 
                                 <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-1 sm:gap-2">
                                     <p className="truncate text-sm font-semibold text-slate-800">
                                       {
                                         result.title
@@ -816,15 +824,13 @@ export default function Header() {
           </div>
         </div>
 
-        {/* ============================================= */}
+        {/* =========================================== */}
         {/* RIGHT */}
-        {/* ============================================= */}
+        {/* =========================================== */}
 
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
 
-          {/* =========================================== */}
           {/* NOTIFICATIONS */}
-          {/* =========================================== */}
 
           <div
             ref={
@@ -837,7 +843,7 @@ export default function Header() {
               onClick={
                 handleNotificationOpen
               }
-              className="relative rounded-lg p-2.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+              className="relative flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
               aria-label="Notifications"
             >
               <Bell size={20} />
@@ -853,16 +859,9 @@ export default function Header() {
               )}
             </button>
 
-            {/* ========================================= */}
-            {/* NOTIFICATION DROPDOWN */}
-            {/* ========================================= */}
-
             {notificationOpen && (
-              <div className="absolute right-0 top-full z-50 mt-2 w-[340px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl sm:w-[390px]">
-
-                {/* HEADER */}
-
-                <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+              <div className="fixed left-3 right-3 top-16 z-50 max-h-[75vh] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[390px] sm:max-h-none">
+                <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-3 py-3 sm:items-center sm:px-4">
                   <div>
                     <p className="text-sm font-semibold text-slate-800">
                       Notifications
@@ -888,9 +887,7 @@ export default function Header() {
                   )}
                 </div>
 
-                {/* CONTENT */}
-
-                <div className="max-h-[390px] overflow-y-auto">
+                <div className="max-h-[55vh] overflow-y-auto sm:max-h-[390px]">
                   {notificationLoading ? (
                     <div className="px-4 py-10 text-center text-sm text-slate-500">
                       Loading
@@ -970,8 +967,6 @@ export default function Header() {
                   )}
                 </div>
 
-                {/* VIEW ALL */}
-
                 <button
                   type="button"
                   onClick={() => {
@@ -994,11 +989,9 @@ export default function Header() {
 
           {/* DIVIDER */}
 
-          <div className="mx-2 hidden h-8 w-px bg-slate-200 sm:block" />
+          <div className="mx-1 hidden h-8 w-px bg-slate-200 sm:block lg:mx-2" />
 
-          {/* =========================================== */}
           {/* PROFILE */}
-          {/* =========================================== */}
 
           <div
             ref={profileRef}
@@ -1016,15 +1009,18 @@ export default function Header() {
                   false
                 );
 
-                setSearchOpen(false);
+                setSearchOpen(
+                  false
+                );
               }}
-              className="flex items-center gap-3 rounded-lg px-2 py-1.5 transition hover:bg-slate-50"
+              className="flex min-h-10 items-center gap-2 rounded-lg px-1.5 py-1 transition hover:bg-slate-50 sm:gap-3 sm:px-2 sm:py-1.5"
+              aria-label="Profile"
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
                 <User size={18} />
               </div>
 
-              <div className="hidden text-left sm:block">
+              <div className="hidden text-left md:block">
                 <p className="text-sm font-semibold text-slate-800">
                   Admin
                 </p>
@@ -1036,7 +1032,7 @@ export default function Header() {
 
               <ChevronDown
                 size={16}
-                className={`hidden text-slate-400 transition-transform sm:block ${
+                className={`hidden text-slate-400 transition-transform lg:block ${
                   profileOpen
                     ? "rotate-180"
                     : ""
@@ -1044,13 +1040,8 @@ export default function Header() {
               />
             </button>
 
-            {/* ========================================= */}
-            {/* PROFILE DROPDOWN */}
-            {/* ========================================= */}
-
             {profileOpen && (
-              <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
-
+              <div className="fixed left-3 right-3 top-16 z-50 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-56">
                 <div className="border-b border-slate-100 px-3 py-3">
                   <p className="text-sm font-semibold text-slate-800">
                     Admin
@@ -1072,6 +1063,7 @@ export default function Header() {
                     <User
                       size={17}
                     />
+
                     <span>
                       Profile
                     </span>
@@ -1087,6 +1079,7 @@ export default function Header() {
                     <Settings
                       size={17}
                     />
+
                     <span>
                       Settings
                     </span>
@@ -1105,6 +1098,7 @@ export default function Header() {
                   <LogOut
                     size={17}
                   />
+
                   <span>
                     Logout
                   </span>
