@@ -1,62 +1,46 @@
-export type ProductType =
-  | "quantity"
-  | "weight"
-  | "size";
+export type ProductType = "quantity" | "weight" | "size";
 
-export interface ApiProduct {
-  id?: number;
+export type ApiProduct = {
+  id?: number | string;
   name?: string;
-  sku?: string | null;
-
-  category?: string | null;
-  categoryName?: string | null;
-
-  type?: ProductType | string | null;
-  unit?: string | null;
-
-  quantity?: number | string | null;
-
-  purchasePrice?: number | string | null;
-  sellingPrice?: number | string | null;
-
-  weightEntries?: string | null;
-
-  status?: string | null;
-
+  sku?: string;
+  category?: string;
+  categoryName?: string;
+  type?: ProductType | string;
+  unit?: string;
+  quantity?: number | string;
+  purchasePrice?: number | string;
+  sellingPrice?: number | string;
+  weightEntries?: string;
+  status?: string;
   [key: string]: unknown;
-}
+};
 
-export interface InventoryItem {
+export type InventoryItem = {
   id: number;
   name: string;
   sku: string;
   category: string;
-  productType: ProductType;
+  productType: ProductType | string;
   unit: string;
   stock: number;
   purchasePrice: number;
   sellingPrice: number;
   weightEntries: string;
   status: string;
-}
+};
 
-export interface InventoryTransaction {
-  id?: number;
-  productId?: number;
-  productName?: string | null;
-  type?: string | null;
-  quantity?: number | string | null;
-  unit?: string | null;
-  referenceType?: string | null;
-  referenceId?: number | string | null;
-  note?: string | null;
-  createdAt?: string | Date | null;
-
-  product?: {
-    id?: number;
-    name?: string | null;
-    [key: string]: unknown;
-  } | null;
-
+export type InventoryTransaction = {
+  id?: number | string;
+  productId?: number | string;
+  productName?: string;
+  product?: unknown;
+  type?: string;
+  quantity?: number | string;
+  unit?: string;
+  referenceType?: string;
+  referenceId?: number | string;
+  note?: string;
+  createdAt?: string;
   [key: string]: unknown;
-}
+};

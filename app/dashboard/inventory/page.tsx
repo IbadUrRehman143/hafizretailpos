@@ -367,19 +367,13 @@ export default function InventoryPage() {
 
         history.sort(
           (a, b) => {
-            const first =
-              a.createdAt
-                ? new Date(
-                    a.createdAt
-                  ).getTime()
-                : 0;
+            const first = a.createdAt
+              ? new Date(a.createdAt).getTime()
+              : Number.NaN;
 
-            const second =
-              b.createdAt
-                ? new Date(
-                    b.createdAt
-                  ).getTime()
-                : 0;
+            const second = b.createdAt
+              ? new Date(b.createdAt).getTime()
+              : Number.NaN;
 
             if (
               Number.isNaN(first) ||
