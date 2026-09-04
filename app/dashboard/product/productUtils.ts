@@ -154,6 +154,11 @@ export function normalizeProduct(
         raw.name || ""
       ),
 
+    barcode:
+      String(
+        raw.barcode || ""
+      ).trim(),
+
     categoryId,
 
     categoryName:

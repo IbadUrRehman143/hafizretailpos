@@ -54,6 +54,8 @@ export type Product = {
 
   name: string;
 
+  barcode: string;
+
   categoryId: number | null;
 
   categoryName: string;
@@ -98,6 +100,8 @@ export function createEmptyProduct(): Product {
     id: 0,
 
     name: "",
+
+    barcode: "",
 
     categoryId: null,
 

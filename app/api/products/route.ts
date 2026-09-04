@@ -13,6 +13,8 @@ type ProductType =
 type ProductBody = {
   name?: string;
 
+  barcode?: string;
+
   categoryId?: number | null;
   categoryName?: string;
 
@@ -38,6 +40,12 @@ type ProductBody = {
   status?: string;
 
   openingStockConfirmed?: boolean;
+};
+
+type ProductWithBarcode = {
+  id: number;
+  name: string;
+  barcode?: string | null;
 };
 
 /* =====================================================
@@ -478,6 +486,44 @@ export async function POST(
     }
 
     /* ===============================================
+       BARCODE
+    =============================================== */
+
+    const barcode =
+      String(
+        body.barcode || ""
+      ).trim();
+
+    if (barcode) {
+      const barcodeProducts =
+        (await db.orm.public.Product.all()) as unknown as ProductWithBarcode[];
+
+      const barcodeExists =
+        barcodeProducts.find(
+          (product) =>
+            String(
+              product.barcode ||
+                ""
+            ).trim() ===
+            barcode
+        );
+
+      if (barcodeExists) {
+        return NextResponse.json(
+          {
+            message:
+              `Barcode "${barcode}" is already assigned to "${barcodeExists.name}".`,
+            code:
+              "BARCODE_ALREADY_EXISTS",
+          },
+          {
+            status: 409,
+          }
+        );
+      }
+    }
+
+    /* ===============================================
        PRODUCT TYPE
     =============================================== */
 
@@ -909,72 +955,79 @@ export async function POST(
              CREATE PRODUCT MASTER
           ========================================= */
 
+          const productData = {
+            name,
+
+            barcode:
+              barcode || null,
+
+            category:
+              category.name,
+
+            categoryId:
+              category.id,
+
+            categoryName:
+              category.name,
+
+            subcategoryId:
+              subcategory
+                ? subcategory.id
+                : null,
+
+            subcategoryName:
+              subcategory
+                ? subcategory.name
+                : "",
+
+            status:
+              "Active",
+
+            type,
+
+            unit,
+
+            purchasePrice,
+
+            sellingPrice,
+
+            /*
+              Weight product:
+              quantity is NOT stock source.
+            */
+
+            quantity:
+              type === "weight"
+                ? 0
+                : openingQty,
+
+            /*
+              Weight product stock source:
+              exact physical bundles.
+            */
+
+            weightEntries:
+              type === "weight"
+                ? cleanWeights
+                : "",
+
+            size,
+
+            material,
+
+            brand,
+
+            model,
+
+            quality,
+
+            color,
+          } as any;
+
           const created =
-            await tx.orm.public.Product.create({
-              name,
-
-              category:
-                category.name,
-
-              categoryId:
-                category.id,
-
-              categoryName:
-                category.name,
-
-              subcategoryId:
-                subcategory
-                  ? subcategory.id
-                  : null,
-
-              subcategoryName:
-                subcategory
-                  ? subcategory.name
-                  : "",
-
-              status:
-                "Active",
-
-              type,
-
-              unit,
-
-              purchasePrice,
-
-              sellingPrice,
-
-              /*
-                Weight product:
-                quantity is NOT stock source.
-              */
-
-              quantity:
-                type === "weight"
-                  ? 0
-                  : openingQty,
-
-              /*
-                Weight product stock source:
-                exact physical bundles.
-              */
-
-              weightEntries:
-                type === "weight"
-                  ? cleanWeights
-                  : "",
-
-              size,
-
-              material,
-
-              brand,
-
-              model,
-
-              quality,
-
-              color,
-            });
+            await tx.orm.public.Product.create(
+              productData
+            );
 
           /* =========================================
              OPENING STOCK TRANSACTION

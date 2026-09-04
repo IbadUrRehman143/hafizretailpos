@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, ScanBarcode } from "lucide-react";
 import ProductCard from "@/app/components/pos/productCard";
 import CartItem from "@/app/components/pos/cartItem";
 import Checkout from "@/app/components/pos/checkOut";
@@ -12,92 +14,224 @@ type Product = {
   price: number;
   stock: number;
   icon: string;
+  barcode: string;
+  type: "quantity" | "weight" | "size";
+  unit: string;
 };
 
 type CartProduct = Product & {
   quantity: number;
 };
 
-const products: Product[] = [
-  {
-    id: 1,
-    name: "Washing Machine",
-    category: "Appliances",
-    price: 45000,
-    stock: 8,
-    icon: "🧺",
-  },
-  {
-    id: 2,
-    name: "Air Cooler",
-    category: "Appliances",
-    price: 18500,
-    stock: 12,
-    icon: "❄️",
-  },
-  {
-    id: 3,
-    name: "Cotton Mattress",
-    category: "Bed Items",
-    price: 8500,
-    stock: 20,
-    icon: "🛏️",
-  },
-  {
-    id: 4,
-    name: "Charpai",
-    category: "Furniture",
-    price: 6500,
-    stock: 15,
-    icon: "🛏️",
-  },
-  {
-    id: 5,
-    name: "Bamboo",
-    category: "Bamboo",
-    price: 1200,
-    stock: 35,
-    icon: "🎋",
-  },
-  {
-    id: 6,
-    name: "Bed Sheet",
-    category: "Bed Items",
-    price: 2500,
-    stock: 25,
-    icon: "🛌",
-  },
-  {
-    id: 7,
-    name: "Pillow",
-    category: "Bed Items",
-    price: 1200,
-    stock: 40,
-    icon: "🛏️",
-  },
-  {
-    id: 8,
-    name: "Electric Fan",
-    category: "Appliances",
-    price: 6500,
-    stock: 18,
-    icon: "🌀",
-  },
-];
-
-const categories = [
-  "All",
-  "Appliances",
-  "Furniture",
-  "Bed Items",
-  "Bamboo",
-];
+function parseWeights(
+  value: unknown
+) {
+  return String(
+    value || ""
+  )
+    .split(/[+,\n\r\s]+/)
+    .map((item) =>
+      Number(
+        item.trim()
+      )
+    )
+    .filter(
+      (item) =>
+        Number.isFinite(
+          item
+        ) &&
+        item > 0
+    );
+}
 
 export default function POSPage() {
+  const router =
+    useRouter();
+
+  const scanInputRef =
+    useRef<HTMLInputElement | null>(
+      null
+    );
+
+  const [
+    products,
+    setProducts,
+  ] = useState<Product[]>([]);
+
+  const [
+    loadingProducts,
+    setLoadingProducts,
+  ] = useState(true);
+
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
   const [cart, setCart] = useState<CartProduct[]>([]);
   const [showCheckout, setShowCheckout] = useState(false);
+
+  const [
+    barcodeValue,
+    setBarcodeValue,
+  ] = useState("");
+
+  const [
+    scanMessage,
+    setScanMessage,
+  ] = useState("");
+
+  useEffect(() => {
+    async function loadProducts() {
+      try {
+        setLoadingProducts(
+          true
+        );
+
+        const response =
+          await fetch(
+            "/api/products?status=active",
+            {
+              cache:
+                "no-store",
+            }
+          );
+
+        if (!response.ok) {
+          throw new Error(
+            "Unable to load products."
+          );
+        }
+
+        const data =
+          (await response.json()) as Array<
+            Record<string, unknown>
+          >;
+
+        const mapped =
+          data.map(
+            (raw) => {
+              const type =
+                raw.type ===
+                  "weight" ||
+                raw.type ===
+                  "size"
+                  ? raw.type
+                  : "quantity";
+
+              const stock =
+                type ===
+                "weight"
+                  ? parseWeights(
+                      raw.weightEntries
+                    ).reduce(
+                      (
+                        total,
+                        weight
+                      ) =>
+                        total +
+                        weight,
+                      0
+                    )
+                  : Math.max(
+                      0,
+                      Number(
+                        raw.quantity
+                      ) || 0
+                    );
+
+              return {
+                id:
+                  Number(
+                    raw.id
+                  ) || 0,
+
+                name:
+                  String(
+                    raw.name ||
+                      ""
+                  ),
+
+                category:
+                  String(
+                    raw.categoryName ||
+                      raw.category ||
+                      "Other"
+                  ),
+
+                price:
+                  Math.max(
+                    0,
+                    Number(
+                      raw.sellingPrice
+                    ) || 0
+                  ),
+
+                stock,
+
+                icon:
+                  "📦",
+
+                barcode:
+                  String(
+                    raw.barcode ||
+                      ""
+                  ).trim(),
+
+                type,
+
+                unit:
+                  type ===
+                  "weight"
+                    ? "KG"
+                    : String(
+                        raw.unit ||
+                          "PCS"
+                      ),
+              } satisfies Product;
+            }
+          )
+          .filter(
+            (product) =>
+              product.id >
+                0 &&
+              product.name
+          );
+
+        setProducts(
+          mapped
+        );
+      } catch (error) {
+        console.error(
+          "Load POS products:",
+          error
+        );
+
+        setScanMessage(
+          "Unable to load products."
+        );
+      } finally {
+        setLoadingProducts(
+          false
+        );
+      }
+    }
+
+    void loadProducts();
+  }, []);
+
+  const categories =
+    useMemo(
+      () => [
+        "All",
+        ...Array.from(
+          new Set(
+            products.map(
+              (product) =>
+                product.category
+            )
+          )
+        ),
+      ],
+      [products]
+    );
 
   const filteredProducts = useMemo(() => {
     const searchText = search.trim().toLowerCase();
@@ -114,7 +248,7 @@ export default function POSPage() {
 
       return matchesSearch && matchesCategory;
     });
-  }, [search, category]);
+  }, [products, search, category]);
 
   // ADD TO CART
   const addToCart = (product: Product) => {
@@ -147,6 +281,264 @@ export default function POSPage() {
       ];
     });
   };
+
+  async function scanBarcode() {
+    const barcode =
+      barcodeValue.trim();
+
+    if (!barcode) {
+      scanInputRef.current?.focus();
+      return;
+    }
+
+    try {
+      setScanMessage(
+        "Scanning..."
+      );
+
+      const response =
+        await fetch(
+          `/api/products/barcode/${encodeURIComponent(
+            barcode
+          )}`,
+          {
+            cache:
+              "no-store",
+          }
+        );
+
+      const data =
+        (await response.json()) as Record<
+          string,
+          unknown
+        >;
+
+      if (!response.ok) {
+        throw new Error(
+          String(
+            data.message ||
+              "Product not found."
+          )
+        );
+      }
+
+      const type =
+        data.type ===
+          "weight" ||
+        data.type ===
+          "size"
+          ? data.type
+          : "quantity";
+
+      const stock =
+        type ===
+        "weight"
+          ? parseWeights(
+              data.weightEntries
+            ).reduce(
+              (
+                total,
+                weight
+              ) =>
+                total +
+                weight,
+              0
+            )
+          : Math.max(
+              0,
+              Number(
+                data.quantity
+              ) || 0
+            );
+
+      const product: Product = {
+        id:
+          Number(
+            data.id
+          ) || 0,
+
+        name:
+          String(
+            data.name ||
+              ""
+          ),
+
+        category:
+          String(
+            data.categoryName ||
+              data.category ||
+              "Other"
+          ),
+
+        price:
+          Math.max(
+            0,
+            Number(
+              data.sellingPrice
+            ) || 0
+          ),
+
+        stock,
+
+        icon:
+          "📦",
+
+        barcode:
+          String(
+            data.barcode ||
+              ""
+          ),
+
+        type,
+
+        unit:
+          type ===
+          "weight"
+            ? "KG"
+            : String(
+                data.unit ||
+                  "PCS"
+              ),
+      };
+
+      if (
+        product.stock <= 0
+      ) {
+        throw new Error(
+          "Product is out of stock."
+        );
+      }
+
+      if (
+        product.type ===
+        "weight"
+      ) {
+        const entered =
+          window.prompt(
+            `Enter KG for ${product.name}\nAvailable: ${product.stock.toFixed(
+              2
+            )} KG`
+          );
+
+        if (
+          entered ===
+            null
+        ) {
+          setBarcodeValue(
+            ""
+          );
+
+          setScanMessage(
+            ""
+          );
+
+          scanInputRef.current?.focus();
+
+          return;
+        }
+
+        const kg =
+          Number(
+            entered
+          );
+
+        if (
+          !Number.isFinite(
+            kg
+          ) ||
+          kg <= 0 ||
+          kg >
+            product.stock
+        ) {
+          throw new Error(
+            "Enter valid KG within available stock."
+          );
+        }
+
+        setCart(
+          (
+            currentCart
+          ) => {
+            const existing =
+              currentCart.find(
+                (item) =>
+                  item.id ===
+                  product.id
+              );
+
+            if (existing) {
+              const nextQuantity =
+                existing.quantity +
+                kg;
+
+              if (
+                nextQuantity >
+                product.stock
+              ) {
+                return currentCart;
+              }
+
+              return currentCart.map(
+                (item) =>
+                  item.id ===
+                  product.id
+                    ? {
+                        ...item,
+                        quantity:
+                          nextQuantity,
+                      }
+                    : item
+              );
+            }
+
+            return [
+              ...currentCart,
+              {
+                ...product,
+                quantity:
+                  kg,
+              },
+            ];
+          }
+        );
+      } else {
+        addToCart(
+          product
+        );
+      }
+
+      setScanMessage(
+        `${product.name} added to cart.`
+      );
+
+      setBarcodeValue(
+        ""
+      );
+
+      window.setTimeout(
+        () => {
+          setScanMessage(
+            ""
+          );
+
+          scanInputRef.current?.focus();
+        },
+        1200
+      );
+    } catch (error) {
+      setScanMessage(
+        error instanceof Error
+          ? error.message
+          : "Product not found."
+      );
+
+      setBarcodeValue(
+        ""
+      );
+
+      scanInputRef.current?.focus();
+    }
+  }
 
   // INCREASE
   const increaseQuantity = (id: number) => {
@@ -242,26 +634,46 @@ export default function POSPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
+    <div className="min-h-screen w-full min-w-0 overflow-x-hidden bg-slate-50 px-3 py-4 sm:px-4 sm:py-5 md:px-6 md:py-6">
 
       {/* HEADER */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
 
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            Point of Sale
-          </h1>
+        <div className="flex min-w-0 items-start gap-3">
 
-          <p className="mt-1 text-sm text-slate-500">
-            Create a new customer sale
-          </p>
+          <button
+            type="button"
+            onClick={() =>
+              router.push(
+                "/dashboard"
+              )
+            }
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+            aria-label="Back to Dashboard"
+            title="Back to Dashboard"
+          >
+            <ArrowLeft
+              size={19}
+            />
+          </button>
+
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
+              Point of Sale
+            </h1>
+
+            <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+              Create a new customer sale
+            </p>
+          </div>
+
         </div>
 
         <button
           type="button"
           onClick={clearCart}
           disabled={cart.length === 0}
-          className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+          className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
         >
           Clear Cart
         </button>
@@ -271,7 +683,90 @@ export default function POSPage() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_400px]">
 
         {/* PRODUCTS */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5">
+
+          {/* BARCODE SCANNER */}
+          <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
+
+            <div className="flex items-center gap-2">
+              <ScanBarcode
+                size={20}
+                className="shrink-0 text-slate-600"
+              />
+
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-900">
+                  Barcode Scanner
+                </p>
+
+                <p className="text-xs text-slate-500">
+                  Scan barcode or type it and press Enter.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+
+              <input
+                ref={
+                  scanInputRef
+                }
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                value={
+                  barcodeValue
+                }
+                onChange={(
+                  event
+                ) =>
+                  setBarcodeValue(
+                    event.target.value
+                  )
+                }
+                onKeyDown={(
+                  event
+                ) => {
+                  if (
+                    event.key ===
+                    "Enter"
+                  ) {
+                    event.preventDefault();
+                    void scanBarcode();
+                  }
+                }}
+                placeholder="Scan barcode..."
+                className="min-h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+
+              <button
+                type="button"
+                onClick={() =>
+                  void scanBarcode()
+                }
+                className="min-h-11 shrink-0 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800"
+              >
+                Add Item
+              </button>
+
+            </div>
+
+            {scanMessage && (
+              <p className={`mt-2 text-xs font-semibold ${
+                scanMessage.includes(
+                  "added to cart"
+                )
+                  ? "text-emerald-600"
+                  : scanMessage ===
+                    "Scanning..."
+                    ? "text-slate-500"
+                    : "text-red-600"
+              }`}>
+                {scanMessage}
+              </p>
+            )}
+
+          </div>
 
           {/* SEARCH */}
           <div className="mb-5">
@@ -287,7 +782,7 @@ export default function POSPage() {
           </div>
 
           {/* CATEGORY */}
-          <div className="mb-6 flex gap-2 overflow-x-auto">
+          <div className="mb-5 flex max-w-full gap-2 overflow-x-auto pb-1 sm:mb-6">
 
             {categories.map((item) => (
               <button
@@ -312,7 +807,13 @@ export default function POSPage() {
           </div>
 
           {/* PRODUCTS */}
-          {filteredProducts.length === 0 ? (
+          {loadingProducts ? (
+
+            <div className="flex min-h-56 items-center justify-center text-sm font-semibold text-slate-500">
+              Loading products...
+            </div>
+
+          ) : filteredProducts.length === 0 ? (
 
             <div className="flex min-h-75 items-center justify-center text-center">
 
@@ -371,7 +872,7 @@ export default function POSPage() {
               </div>
 
               {/* CART */}
-              <div className="max-h-107.5 overflow-y-auto p-4">
+              <div className="p-3 sm:p-4 xl:max-h-107.5 xl:overflow-y-auto">
 
                 {cart.length === 0 ? (
 
@@ -478,8 +979,10 @@ export default function POSPage() {
                   type="button"
                   onClick={() => setShowCheckout(false)}
                   className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200"
+                  aria-label="Back to cart"
+                  title="Back to cart"
                 >
-                  ←
+                  <ArrowLeft size={18} />
                 </button>
 
                 <div>

@@ -353,12 +353,12 @@ export default function ProductModal({
   // ====================================================
 
   return (
-    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/50 p-4">
-      <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/50 p-2 sm:p-4">
+      <div className="max-h-[96vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white shadow-2xl sm:max-h-[92vh] sm:rounded-3xl">
 
         {/* HEADER */}
 
-        <div className="sticky top-0 z-20 flex items-center justify-between border-b bg-white px-6 py-5">
+        <div className="sticky top-0 z-20 flex items-start justify-between gap-3 border-b bg-white px-4 py-4 sm:items-center sm:px-6 sm:py-5">
           <div>
             <h2 className="text-xl font-bold text-slate-900">
               {editingId !== null
@@ -386,14 +386,14 @@ export default function ProductModal({
 
         <form
           onSubmit={onSubmit}
-          className="space-y-6 p-6"
+          className="space-y-4 p-3 sm:space-y-6 sm:p-6"
         >
 
           {/* ============================================
               BASIC INFORMATION
           ============================================ */}
 
-          <section className="rounded-2xl border p-5">
+          <section className="rounded-2xl border p-3 sm:p-5">
             <h3 className="font-bold text-slate-900">
               Basic Information
             </h3>
@@ -408,6 +408,17 @@ export default function ProductModal({
                   updateForm(
                     "name",
                     value
+                  )
+                }
+              />
+
+              <Input
+                label="Barcode"
+                value={form.barcode}
+                onChange={(value) =>
+                  updateForm(
+                    "barcode",
+                    value.trim()
                   )
                 }
               />
@@ -583,7 +594,7 @@ export default function ProductModal({
               SPECIFICATIONS
           ============================================ */}
 
-          <section className="rounded-2xl border p-5">
+          <section className="rounded-2xl border p-3 sm:p-5">
             <h3 className="font-bold text-slate-900">
               Specifications
             </h3>
@@ -664,7 +675,7 @@ export default function ProductModal({
 
           {form.type !==
             "weight" && (
-            <section className="rounded-2xl border bg-slate-50 p-5">
+            <section className="rounded-2xl border bg-slate-50 p-3 sm:p-5">
               <div>
                 <h3 className="font-bold text-slate-900">
                   Opening Stock

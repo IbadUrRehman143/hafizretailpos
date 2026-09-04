@@ -14,11 +14,13 @@ import {
 
 import {
   ArrowLeft,
+  Upload,
 } from "lucide-react";
 
 import ProductTable from "./productTable";
 import ProductModal from "./productModal";
 import CategoryManager from "./categoryManager";
+import ImportProductsModal from "./importProductsModal";
 
 import {
   createEmptyProduct,
@@ -99,6 +101,11 @@ export default function ProductsPage() {
   const [
     showCategories,
     setShowCategories,
+  ] = useState(false);
+
+  const [
+    showImport,
+    setShowImport,
   ] = useState(false);
 
   const [
@@ -377,6 +384,9 @@ export default function ProductsPage() {
         (product) => {
           const matchesSearch =
             product.name
+              .toLowerCase()
+              .includes(text) ||
+            product.barcode
               .toLowerCase()
               .includes(text) ||
             product.categoryName
@@ -941,7 +951,21 @@ export default function ProductsPage() {
 
           </div>
 
-          <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:w-auto">
+          <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 lg:w-auto">
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowImport(
+                  true
+                )
+              }
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 lg:w-auto"
+            >
+              <Upload size={17} />
+              Import Excel
+            </button>
+
             <button
               type="button"
               onClick={() =>
@@ -1024,7 +1048,7 @@ export default function ProductsPage() {
                   .value
               )
             }
-            placeholder="Search product, category, subcategory, brand..."
+            placeholder="Search product, barcode, category, subcategory, brand..."
             className="h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-slate-400"
           />
 
@@ -1151,6 +1175,30 @@ export default function ProductsPage() {
         }
         onSubmit={
           handleSubmit
+        }
+      />
+
+      {/* IMPORT EXCEL */}
+
+      <ImportProductsModal
+        open={
+          showImport
+        }
+        categories={
+          activeCategories
+        }
+        subcategories={
+          activeSubcategories
+        }
+        onClose={() =>
+          setShowImport(
+            false
+          )
+        }
+        onComplete={
+          async () => {
+            await loadProducts();
+          }
         }
       />
 

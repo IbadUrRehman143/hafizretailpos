@@ -8,20 +8,28 @@ type ProductType =
 
 type ProductBody = {
   name?: string;
+
+  barcode?: string;
+
   categoryId?: number | null;
   categoryName?: string;
+
   type?: ProductType;
   unit?: string;
+
   purchasePrice?: number;
   sellingPrice?: number;
+
   quantity?: number;
   weightEntries?: string;
+
   size?: string;
   material?: string;
   brand?: string;
   model?: string;
   quality?: string;
   color?: string;
+
   status?: string;
 };
 
@@ -31,11 +39,22 @@ type RouteContext = {
   }>;
 };
 
-function parseProductId(id: string) {
-  const productId = Number(id);
+type ProductWithBarcode = {
+  id: number;
+  name: string;
+  barcode?: string | null;
+};
+
+function parseProductId(
+  id: string
+) {
+  const productId =
+    Number(id);
 
   if (
-    !Number.isInteger(productId) ||
+    !Number.isInteger(
+      productId
+    ) ||
     productId <= 0
   ) {
     return null;
@@ -58,7 +77,9 @@ async function resolveCategory(
 
   if (
     requestedId &&
-    Number.isInteger(requestedId)
+    Number.isInteger(
+      requestedId
+    )
   ) {
     const category =
       await db.orm.public.Category
@@ -93,7 +114,9 @@ async function resolveCategory(
         name.toLowerCase()
     );
 
-  if (found) return found;
+  if (found) {
+    return found;
+  }
 
   return await db.orm.public.Category.create({
     name,
@@ -107,7 +130,8 @@ export async function GET(
   context: RouteContext
 ) {
   try {
-    const { id } = await context.params;
+    const { id } =
+      await context.params;
 
     const productId =
       parseProductId(id);
@@ -118,7 +142,9 @@ export async function GET(
           message:
             "Invalid product ID.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
@@ -135,11 +161,15 @@ export async function GET(
           message:
             "Product not found.",
         },
-        { status: 404 }
+        {
+          status: 404,
+        }
       );
     }
 
-    return NextResponse.json(product);
+    return NextResponse.json(
+      product
+    );
   } catch (error) {
     console.error(
       "GET PRODUCT ERROR:",
@@ -151,7 +181,9 @@ export async function GET(
         message:
           "Unable to load product.",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
@@ -161,7 +193,8 @@ export async function PUT(
   context: RouteContext
 ) {
   try {
-    const { id } = await context.params;
+    const { id } =
+      await context.params;
 
     const productId =
       parseProductId(id);
@@ -172,7 +205,9 @@ export async function PUT(
           message:
             "Invalid product ID.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
@@ -189,7 +224,9 @@ export async function PUT(
           message:
             "Product not found.",
         },
-        { status: 404 }
+        {
+          status: 404,
+        }
       );
     }
 
@@ -205,7 +242,8 @@ export async function PUT(
 
     const name =
       String(
-        body.name ?? existing.name
+        body.name ??
+          existing.name
       ).trim();
 
     if (!name) {
@@ -214,8 +252,57 @@ export async function PUT(
           message:
             "Product name is required.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
+    }
+
+    const existingWithBarcode =
+      existing as typeof existing & {
+        barcode?: string | null;
+      };
+
+    const barcode =
+      String(
+        body.barcode ??
+          existingWithBarcode.barcode ??
+          ""
+      ).trim();
+
+    if (barcode) {
+      const allProducts =
+        (await db.orm.public.Product.all()) as unknown as ProductWithBarcode[];
+
+      const duplicateBarcode =
+        allProducts.find(
+          (product) =>
+            Number(
+              product.id
+            ) !==
+              productId &&
+            String(
+              product.barcode ||
+                ""
+            ).trim() ===
+              barcode
+        );
+
+      if (
+        duplicateBarcode
+      ) {
+        return NextResponse.json(
+          {
+            message:
+              `Barcode "${barcode}" is already assigned to "${duplicateBarcode.name}".`,
+            code:
+              "BARCODE_ALREADY_EXISTS",
+          },
+          {
+            status: 409,
+          }
+        );
+      }
     }
 
     const category =
@@ -224,89 +311,140 @@ export async function PUT(
         existing
       );
 
+    /*
+      IMPORTANT:
+      `barcode` may still be missing from your generated ORM type
+      until your database contract/migration is updated.
+
+      We keep the normal Product model methods and only cast the
+      update payload so TypeScript does not show the false red line.
+    */
+
+    const updateData = {
+      name,
+
+      barcode:
+        barcode || null,
+
+      category:
+        category.name,
+
+      categoryId:
+        category.id,
+
+      categoryName:
+        category.name,
+
+      status:
+        body.status ===
+        "Archived"
+          ? "Archived"
+          : "Active",
+
+      type,
+
+      unit:
+        type === "weight"
+          ? "KG"
+          : String(
+              body.unit ??
+                existing.unit ??
+                "PCS"
+            ),
+
+      purchasePrice:
+        Math.max(
+          0,
+          Number(
+            body.purchasePrice ??
+              existing.purchasePrice
+          ) || 0
+        ),
+
+      sellingPrice:
+        Math.max(
+          0,
+          Number(
+            body.sellingPrice ??
+              existing.sellingPrice
+          ) || 0
+        ),
+
+      // Stock is not edited from Product Edit.
+      // Use Purchase or Inventory Adjustment.
+      quantity:
+        type === "weight"
+          ? 0
+          : Math.max(
+              0,
+              Number(
+                existing.quantity
+              ) || 0
+            ),
+
+      weightEntries:
+        type === "weight"
+          ? String(
+              existing.weightEntries ||
+                ""
+            )
+          : "",
+
+      size:
+        String(
+          body.size ??
+            existing.size ??
+            ""
+        ),
+
+      material:
+        String(
+          body.material ??
+            existing.material ??
+            ""
+        ),
+
+      brand:
+        String(
+          body.brand ??
+            existing.brand ??
+            ""
+        ),
+
+      model:
+        String(
+          body.model ??
+            existing.model ??
+            ""
+        ),
+
+      quality:
+        String(
+          body.quality ??
+            existing.quality ??
+            ""
+        ),
+
+      color:
+        String(
+          body.color ??
+            existing.color ??
+            ""
+        ),
+    } as any;
+
     const updated =
       await db.orm.public.Product
         .where({
           id: productId,
         })
-        .update({
-          name,
-          category: category.name,
-          categoryId:
-            category.id,
-          categoryName:
-            category.name,
-          status:
-            body.status === "Archived"
-              ? "Archived"
-              : "Active",
-          type,
-          unit:
-            type === "weight"
-              ? "KG"
-              : String(
-                  body.unit ??
-                    existing.unit ??
-                    "PCS"
-                ),
-          purchasePrice:
-            Math.max(
-              0,
-              Number(
-                body.purchasePrice ??
-                  existing.purchasePrice
-              ) || 0
-            ),
-          sellingPrice:
-            Math.max(
-              0,
-              Number(
-                body.sellingPrice ??
-                  existing.sellingPrice
-              ) || 0
-            ),
-          // Stock is not edited from Product Edit. Use Purchase or Inventory Adjustment.
-          quantity: type === "weight" ? 0 : Math.max(0, Number(existing.quantity) || 0),
-          weightEntries: type === "weight" ? String(existing.weightEntries || "") : "",
-          size:
-            String(
-              body.size ??
-                existing.size ??
-                ""
-            ),
-          material:
-            String(
-              body.material ??
-                existing.material ??
-                ""
-            ),
-          brand:
-            String(
-              body.brand ??
-                existing.brand ??
-                ""
-            ),
-          model:
-            String(
-              body.model ??
-                existing.model ??
-                ""
-            ),
-          quality:
-            String(
-              body.quality ??
-                existing.quality ??
-                ""
-            ),
-          color:
-            String(
-              body.color ??
-                existing.color ??
-                ""
-            ),
-        });
+        .update(
+          updateData
+        );
 
-    return NextResponse.json(updated);
+    return NextResponse.json(
+      updated
+    );
   } catch (error) {
     console.error(
       "UPDATE PRODUCT ERROR:",
@@ -320,7 +458,9 @@ export async function PUT(
             ? error.message
             : "Unable to update product.",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
@@ -330,7 +470,8 @@ export async function DELETE(
   context: RouteContext
 ) {
   try {
-    const { id } = await context.params;
+    const { id } =
+      await context.params;
 
     const productId =
       parseProductId(id);
@@ -341,7 +482,9 @@ export async function DELETE(
           message:
             "Invalid product ID.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
@@ -358,7 +501,9 @@ export async function DELETE(
           message:
             "Product not found.",
         },
-        { status: 404 }
+        {
+          status: 404,
+        }
       );
     }
 
@@ -391,10 +536,14 @@ export async function DELETE(
         .all();
 
     const hasHistory =
-      invoiceItems.length > 0 ||
-      purchaseItems.length > 0 ||
-      inventoryTransactions.length > 0 ||
-      returnItems.length > 0;
+      invoiceItems.length >
+        0 ||
+      purchaseItems.length >
+        0 ||
+      inventoryTransactions.length >
+        0 ||
+      returnItems.length >
+        0;
 
     if (hasHistory) {
       const archived =
@@ -403,14 +552,17 @@ export async function DELETE(
             id: productId,
           })
           .update({
-            status: "Archived",
+            status:
+              "Archived",
           });
 
       return NextResponse.json({
         message:
           "Product has business history, so it was archived instead of permanently deleted.",
-        mode: "archived",
-        product: archived,
+        mode:
+          "archived",
+        product:
+          archived,
       });
     }
 
@@ -424,8 +576,10 @@ export async function DELETE(
     return NextResponse.json({
       message:
         "Product deleted successfully.",
-      mode: "deleted",
-      product: deleted,
+      mode:
+        "deleted",
+      product:
+        deleted,
     });
   } catch (error) {
     console.error(
@@ -438,7 +592,9 @@ export async function DELETE(
         message:
           "Unable to delete product.",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
