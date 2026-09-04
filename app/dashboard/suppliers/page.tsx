@@ -7,6 +7,9 @@ import {
   type ReactNode,
 } from "react";
 
+import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
+
 type PaymentStatus = "PAID" | "PARTIAL" | "UNPAID";
 
 type Customer = {
@@ -305,6 +308,8 @@ async function readApi(
 }
 
 export default function CustomersPage() {
+  const router = useRouter();
+
   const [
     customers,
     setCustomers,
@@ -316,14 +321,7 @@ export default function CustomersPage() {
     setLoading,
   ] =
     useState(true);
-
-  const [
-    refreshing,
-    setRefreshing,
-  ] =
-    useState(false);
-
-  const [
+const [
     search,
     setSearch,
   ] =
@@ -363,15 +361,9 @@ export default function CustomersPage() {
   ] =
     useState(false);
 
-  async function loadCustomers(
-    refresh = false
-  ) {
+  async function loadCustomers() {
     try {
-      if (refresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+      setLoading(true);
 
       setError("");
 
@@ -430,8 +422,7 @@ export default function CustomersPage() {
       );
     } finally {
       setLoading(false);
-      setRefreshing(false);
-    }
+}
   }
 
   useEffect(() => {
@@ -548,16 +539,8 @@ export default function CustomersPage() {
         ...customerData,
         invoices,
       });
-    } catch (error) {
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Unable to load history."
-      );
-
-      setShowHistory(
-        false
-      );
+    } catch {
+      setShowHistory(false);
     } finally {
       setHistoryLoading(
         false
@@ -645,54 +628,45 @@ export default function CustomersPage() {
     }, [customers]);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="min-h-screen bg-slate-50 p-3 sm:p-4 md:p-6 lg:p-8">
+      <div className="mx-auto max-w-[1600px] space-y-4 sm:space-y-6">
         {/* HEADER */}
 
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Wholesale Customers
-            </h1>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Only wholesale customers and their credit history.
-            </p>
-          </div>
-
-          <div className="flex gap-2">
+          <div className="flex min-w-0 items-start gap-3">
             <button
               type="button"
-              onClick={() =>
-                void loadCustomers(
-                  true
-                )
-              }
-              disabled={
-                refreshing
-              }
-              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+              onClick={() => router.push("/dashboard")}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+              aria-label="Back to Dashboard"
+              title="Back to Dashboard"
             >
-              {refreshing
-                ? "Refreshing..."
-                : "Refresh"}
+              <ArrowLeft size={19} />
             </button>
 
-            <button
-              type="button"
-              onClick={
-                addWholesaleCustomer
-              }
-              className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700"
-            >
-              + Add Wholesale Customer
-            </button>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                Wholesale Customers
+              </h1>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Only wholesale customers and their credit history.
+              </p>
+            </div>
           </div>
+
+          <button
+            type="button"
+            onClick={addWholesaleCustomer}
+            className="w-full rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700 sm:w-auto"
+          >
+            + Add Wholesale Customer
+          </button>
         </div>
 
         {/* INFO */}
 
-        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 sm:p-5">
           <p className="font-bold text-blue-900">
             Wholesale Flow
           </p>
@@ -713,7 +687,7 @@ export default function CustomersPage() {
 
         {/* STATS */}
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-5">
           <StatCard
             label="Customers"
             value={
@@ -805,216 +779,271 @@ export default function CustomersPage() {
           </select>
         </div>
 
-        {/* TABLE */}
+        {/* CUSTOMERS LIST */}
 
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1500px]">
-              <thead className="bg-slate-50">
-                <tr className="border-b border-slate-200">
-                  <TableHead>
-                    Customer
-                  </TableHead>
+          {loading ? (
+            <div className="px-4 py-14 text-center text-sm text-slate-500 sm:px-6">
+              Loading customers...
+            </div>
+          ) : filteredCustomers.length === 0 ? (
+            <div className="px-4 py-14 text-center text-sm text-slate-500 sm:px-6">
+              No wholesale customers yet.
+            </div>
+          ) : (
+            <>
+              {/* MOBILE / TABLET CARDS */}
 
-                  <TableHead>
-                    Phone
-                  </TableHead>
-
-                  <TableHead>
-                    Invoices
-                  </TableHead>
-
-                  <TableHead>
-                    Total Sales
-                  </TableHead>
-
-                  <TableHead>
-                    Initial Paid
-                  </TableHead>
-
-                  <TableHead>
-                    Received
-                  </TableHead>
-
-                  <TableHead>
-                    Total Paid
-                  </TableHead>
-
-                  <TableHead>
-                    Remaining
-                  </TableHead>
-
-                  <TableHead>
-                    Change
-                  </TableHead>
-
-                  <TableHead>
-                    Last Purchase
-                  </TableHead>
-
-                  <TableHead>
-                    Status
-                  </TableHead>
-
-                  <TableHead>
-                    Actions
-                  </TableHead>
-                </tr>
-              </thead>
-
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td
-                      colSpan={
-                        12
-                      }
-                      className="px-6 py-16 text-center text-sm text-slate-500"
+              <div className="divide-y divide-slate-100 xl:hidden">
+                {filteredCustomers.map(
+                  (customer) => (
+                    <div
+                      key={customer.id}
+                      className="p-4 sm:p-5"
                     >
-                      Loading customers...
-                    </td>
-                  </tr>
-                ) : filteredCustomers.length ===
-                  0 ? (
-                  <tr>
-                    <td
-                      colSpan={
-                        12
-                      }
-                      className="px-6 py-16 text-center text-sm text-slate-500"
-                    >
-                      No wholesale customers yet.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredCustomers.map(
-                    (customer) => (
-                      <tr
-                        key={
-                          customer.id
-                        }
-                        className="border-b border-slate-100 hover:bg-slate-50"
-                      >
-                        <td className="px-5 py-4">
-                          <p className="font-bold text-slate-900">
-                            {
-                              customer.name
-                            }
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate font-bold text-slate-900">
+                            {customer.name}
                           </p>
 
-                          <p className="text-xs text-slate-500">
-                            Customer #
-                            {
-                              customer.id
-                            }
+                          <p className="mt-1 text-xs text-slate-500">
+                            Customer #{customer.id}
                           </p>
-                        </td>
 
-                        <td className="px-5 py-4 text-sm font-medium">
-                          {
-                            customer.phone
+                          <p className="mt-1 text-sm font-medium text-slate-700">
+                            {customer.phone || "No phone"}
+                          </p>
+                        </div>
+
+                        <StatusBadge
+                          status={customer.paymentStatus}
+                        />
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs text-slate-400">
+                            Invoices
+                          </p>
+
+                          <p className="mt-1 text-sm font-bold text-slate-900">
+                            {customer.invoiceCount}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs text-slate-400">
+                            Total Sales
+                          </p>
+
+                          <p className="mt-1 text-sm font-bold text-slate-900">
+                            {formatCurrency(customer.totalSales)}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl bg-emerald-50 p-3">
+                          <p className="text-xs text-emerald-600">
+                            Total Paid
+                          </p>
+
+                          <p className="mt-1 text-sm font-bold text-emerald-700">
+                            {formatCurrency(customer.totalPaid)}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl bg-red-50 p-3">
+                          <p className="text-xs text-red-500">
+                            Remaining
+                          </p>
+
+                          <p className="mt-1 text-sm font-bold text-red-600">
+                            {formatCurrency(customer.receivable)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-3">
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs text-slate-400">
+                            Received Later
+                          </p>
+
+                          <p className="mt-1 text-sm font-bold text-blue-700">
+                            {formatCurrency(customer.receivedAmount)}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs text-slate-400">
+                            Last Purchase
+                          </p>
+
+                          <p className="mt-1 text-sm font-semibold text-slate-700">
+                            {formatDate(customer.lastPurchase)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            newInvoice(customer)
                           }
-                        </td>
+                          className="rounded-lg bg-emerald-600 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-700"
+                        >
+                          New Invoice
+                        </button>
 
-                        <td className="px-5 py-4 font-bold">
-                          {
-                            customer.invoiceCount
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void viewHistory(customer)
                           }
-                        </td>
-
-                        <td className="px-5 py-4 font-bold">
-                          {formatCurrency(
-                            customer.totalSales
-                          )}
-                        </td>
-
-                        <td className="px-5 py-4 font-bold text-emerald-700">
-                          {formatCurrency(
-                            customer.initialPaid
-                          )}
-                        </td>
-
-                        <td className="px-5 py-4 font-bold text-blue-700">
-                          {formatCurrency(
-                            customer.receivedAmount
-                          )}
-                        </td>
-
-                        <td className="px-5 py-4 font-bold text-emerald-700">
-                          {formatCurrency(
-                            customer.totalPaid
-                          )}
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <span
-                            className={
-                              customer.receivable >
-                              0
-                                ? "font-bold text-red-600"
-                                : "font-bold text-slate-600"
-                            }
-                          >
-                            {formatCurrency(
-                              customer.receivable
-                            )}
-                          </span>
-                        </td>
-
-                        <td className="px-5 py-4 font-bold text-violet-700">
-                          {formatCurrency(
-                            customer.changeAmount
-                          )}
-                        </td>
-
-                        <td className="px-5 py-4 text-sm text-slate-500">
-                          {formatDate(
-                            customer.lastPurchase
-                          )}
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <StatusBadge
-                            status={
-                              customer.paymentStatus
-                            }
-                          />
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                newInvoice(
-                                  customer
-                                )
-                              }
-                              className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white"
-                            >
-                              New Invoice
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void viewHistory(
-                                  customer
-                                )
-                              }
-                              className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700"
-                            >
-                              History
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
+                          className="rounded-lg bg-blue-50 px-3 py-2.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100"
+                        >
+                          History
+                        </button>
+                      </div>
+                    </div>
                   )
                 )}
-              </tbody>
-            </table>
-          </div>
+              </div>
+
+              {/* DESKTOP TABLE */}
+
+              <div className="hidden xl:block">
+                <table className="w-full table-fixed">
+                  <colgroup>
+                    <col className="w-[10%]" />
+                    <col className="w-[8%]" />
+                    <col className="w-[6%]" />
+                    <col className="w-[8%]" />
+                    <col className="w-[8%]" />
+                    <col className="w-[8%]" />
+                    <col className="w-[8%]" />
+                    <col className="w-[8%]" />
+                    <col className="w-[7%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[7%]" />
+                    <col className="w-[12%]" />
+                  </colgroup>
+                  <thead className="bg-slate-50">
+                    <tr className="border-b border-slate-200">
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Invoices</TableHead>
+                      <TableHead>Total Sales</TableHead>
+                      <TableHead>Initial Paid</TableHead>
+                      <TableHead>Received</TableHead>
+                      <TableHead>Total Paid</TableHead>
+                      <TableHead>Remaining</TableHead>
+                      <TableHead>Change</TableHead>
+                      <TableHead>Last Purchase</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {filteredCustomers.map(
+                      (customer) => (
+                        <tr
+                          key={customer.id}
+                          className="border-b border-slate-100 hover:bg-slate-50"
+                        >
+                          <td className="px-3 py-4">
+                            <p className="break-words text-[13px] font-bold leading-tight text-slate-900">
+                              {customer.name}
+                            </p>
+
+                            <p className="text-xs text-slate-500">
+                              Customer #{customer.id}
+                            </p>
+                          </td>
+
+                          <td className="px-2.5 py-4 text-[13px] font-medium">
+                            {customer.phone}
+                          </td>
+
+                          <td className="px-2.5 py-4 text-[13px] font-bold">
+                            {customer.invoiceCount}
+                          </td>
+
+                          <td className="px-2.5 py-4 text-[13px] font-bold">
+                            {formatCurrency(customer.totalSales)}
+                          </td>
+
+                          <td className="px-2.5 py-4 text-[13px] font-bold text-emerald-700">
+                            {formatCurrency(customer.initialPaid)}
+                          </td>
+
+                          <td className="px-2.5 py-4 text-[13px] font-bold text-blue-700">
+                            {formatCurrency(customer.receivedAmount)}
+                          </td>
+
+                          <td className="px-2.5 py-4 text-[13px] font-bold text-emerald-700">
+                            {formatCurrency(customer.totalPaid)}
+                          </td>
+
+                          <td className="px-3 py-4">
+                            <span
+                              className={
+                                customer.receivable > 0
+                                  ? "font-bold text-red-600"
+                                  : "font-bold text-slate-600"
+                              }
+                            >
+                              {formatCurrency(customer.receivable)}
+                            </span>
+                          </td>
+
+                          <td className="px-2.5 py-4 text-[13px] font-bold text-violet-700">
+                            {formatCurrency(customer.changeAmount)}
+                          </td>
+
+                          <td className="px-2.5 py-4 text-[13px] text-slate-500">
+                            {formatDate(customer.lastPurchase)}
+                          </td>
+
+                          <td className="px-3 py-4">
+                            <StatusBadge
+                              status={customer.paymentStatus}
+                            />
+                          </td>
+
+                          <td className="px-3 py-4">
+                            <div className="flex w-full gap-2 sm:w-auto">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  newInvoice(customer)
+                                }
+                                className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white"
+                              >
+                                New Invoice
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void viewHistory(customer)
+                                }
+                                className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700"
+                              >
+                                History
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -1022,9 +1051,9 @@ export default function CustomersPage() {
 
       {showHistory &&
         selectedCustomer && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-            <div className="max-h-[92vh] w-full max-w-7xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
-              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-5">
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-3 sm:flex sm:items-center sm:justify-center sm:p-4">
+            <div className="mx-auto my-4 max-h-[94vh] w-full max-w-7xl overflow-y-auto rounded-2xl bg-white shadow-2xl sm:my-0 sm:rounded-3xl">
+              <div className="sticky top-0 z-10 flex flex-col gap-3 border-b border-slate-200 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
                 <div>
                   <h2 className="text-xl font-bold">
                     {
@@ -1039,7 +1068,7 @@ export default function CustomersPage() {
                   </p>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() =>
@@ -1047,7 +1076,7 @@ export default function CustomersPage() {
                         selectedCustomer
                       )
                     }
-                    className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white"
+                    className="flex-1 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white sm:flex-none"
                   >
                     + New Invoice
                   </button>
@@ -1066,7 +1095,7 @@ export default function CustomersPage() {
                 </div>
               </div>
 
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 {historyLoading ? (
                   <div className="py-16 text-center">
                     Loading...
@@ -1121,133 +1150,150 @@ export default function CustomersPage() {
                       />
                     </div>
 
-                    <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                      <table className="w-full min-w-[1250px]">
-                        <thead className="bg-slate-50">
-                          <tr>
-                            <TableHead>
-                              Invoice
-                            </TableHead>
-
-                            <TableHead>
-                              Date
-                            </TableHead>
-
-                            <TableHead>
-                              Total
-                            </TableHead>
-
-                            <TableHead>
-                              Initial Paid
-                            </TableHead>
-
-                            <TableHead>
-                              Received Later
-                            </TableHead>
-
-                            <TableHead>
-                              Total Paid
-                            </TableHead>
-
-                            <TableHead>
-                              Remaining
-                            </TableHead>
-
-                            <TableHead>
-                              Change
-                            </TableHead>
-
-                            <TableHead>
-                              Status
-                            </TableHead>
-                          </tr>
-                        </thead>
-
-                        <tbody>
-                          {selectedCustomer.invoices.length ===
-                          0 ? (
-                            <tr>
-                              <td
-                                colSpan={
-                                  9
-                                }
-                                className="p-12 text-center text-slate-500"
-                              >
-                                No wholesale invoices.
-                              </td>
-                            </tr>
-                          ) : (
-                            selectedCustomer.invoices.map(
-                              (
-                                invoice
-                              ) => (
-                                <tr
-                                  key={
-                                    invoice.id
-                                  }
-                                  className="border-t border-slate-100"
+                    <div className="overflow-hidden rounded-2xl border border-slate-200">
+                      {selectedCustomer.invoices.length === 0 ? (
+                        <div className="p-12 text-center text-slate-500">
+                          No wholesale invoices.
+                        </div>
+                      ) : (
+                        <>
+                          <div className="divide-y divide-slate-100 xl:hidden">
+                            {selectedCustomer.invoices.map(
+                              (invoice) => (
+                                <div
+                                  key={invoice.id}
+                                  className="p-4"
                                 >
-                                  <td className="px-5 py-4 font-bold">
-                                    {
-                                      invoice.invoiceNumber
-                                    }
-                                  </td>
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="break-words font-bold text-slate-900">
+                                        {invoice.invoiceNumber}
+                                      </p>
 
-                                  <td className="px-5 py-4">
-                                    {formatDate(
-                                      invoice.createdAt
-                                    )}
-                                  </td>
+                                      <p className="mt-1 text-xs text-slate-500">
+                                        {formatDate(invoice.createdAt)}
+                                      </p>
+                                    </div>
 
-                                  <td className="px-5 py-4 font-bold">
-                                    {formatCurrency(
-                                      invoice.total
-                                    )}
-                                  </td>
-
-                                  <td className="px-5 py-4 font-bold text-emerald-700">
-                                    {formatCurrency(
-                                      invoice.initialPaid
-                                    )}
-                                  </td>
-
-                                  <td className="px-5 py-4 font-bold text-blue-700">
-                                    {formatCurrency(
-                                      invoice.receivedAmount
-                                    )}
-                                  </td>
-
-                                  <td className="px-5 py-4 font-bold text-emerald-700">
-                                    {formatCurrency(
-                                      invoice.totalPaid
-                                    )}
-                                  </td>
-
-                                  <td className="px-5 py-4 font-bold text-red-600">
-                                    {formatCurrency(
-                                      invoice.remainingBalance
-                                    )}
-                                  </td>
-
-                                  <td className="px-5 py-4 font-bold text-violet-700">
-                                    {formatCurrency(
-                                      invoice.changeAmount
-                                    )}
-                                  </td>
-
-                                  <td className="px-5 py-4">
                                     <StatusBadge
-                                      status={
-                                        invoice.status
-                                      }
+                                      status={invoice.status}
                                     />
-                                  </td>
-                                </tr>
+                                  </div>
+
+                                  <div className="mt-4 grid grid-cols-2 gap-3">
+                                    <div className="rounded-xl bg-slate-50 p-3">
+                                      <p className="text-xs text-slate-400">
+                                        Total
+                                      </p>
+
+                                      <p className="mt-1 text-sm font-bold text-slate-900">
+                                        {formatCurrency(invoice.total)}
+                                      </p>
+                                    </div>
+
+                                    <div className="rounded-xl bg-emerald-50 p-3">
+                                      <p className="text-xs text-emerald-600">
+                                        Total Paid
+                                      </p>
+
+                                      <p className="mt-1 text-sm font-bold text-emerald-700">
+                                        {formatCurrency(invoice.totalPaid)}
+                                      </p>
+                                    </div>
+
+                                    <div className="rounded-xl bg-red-50 p-3">
+                                      <p className="text-xs text-red-500">
+                                        Remaining
+                                      </p>
+
+                                      <p className="mt-1 text-sm font-bold text-red-600">
+                                        {formatCurrency(invoice.remainingBalance)}
+                                      </p>
+                                    </div>
+
+                                    <div className="rounded-xl bg-slate-50 p-3">
+                                      <p className="text-xs text-slate-400">
+                                        Change
+                                      </p>
+
+                                      <p className="mt-1 text-sm font-bold text-violet-700">
+                                        {formatCurrency(invoice.changeAmount)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
                               )
-                            )
-                          )}
-                        </tbody>
-                      </table>
+                            )}
+                          </div>
+
+                          <div className="hidden xl:block">
+                            <table className="w-full table-fixed">
+                              <thead className="bg-slate-50">
+                                <tr>
+                                  <TableHead>Invoice</TableHead>
+                                  <TableHead>Date</TableHead>
+                                  <TableHead>Total</TableHead>
+                                  <TableHead>Initial Paid</TableHead>
+                                  <TableHead>Received Later</TableHead>
+                                  <TableHead>Total Paid</TableHead>
+                                  <TableHead>Remaining</TableHead>
+                                  <TableHead>Change</TableHead>
+                                  <TableHead>Status</TableHead>
+                                </tr>
+                              </thead>
+
+                              <tbody>
+                                {selectedCustomer.invoices.map(
+                                  (invoice) => (
+                                    <tr
+                                      key={invoice.id}
+                                      className="border-t border-slate-100"
+                                    >
+                                      <td className="px-2.5 py-4 text-[13px] font-bold">
+                                        {invoice.invoiceNumber}
+                                      </td>
+
+                                      <td className="px-3 py-4">
+                                        {formatDate(invoice.createdAt)}
+                                      </td>
+
+                                      <td className="px-2.5 py-4 text-[13px] font-bold">
+                                        {formatCurrency(invoice.total)}
+                                      </td>
+
+                                      <td className="px-2.5 py-4 text-[13px] font-bold text-emerald-700">
+                                        {formatCurrency(invoice.initialPaid)}
+                                      </td>
+
+                                      <td className="px-2.5 py-4 text-[13px] font-bold text-blue-700">
+                                        {formatCurrency(invoice.receivedAmount)}
+                                      </td>
+
+                                      <td className="px-2.5 py-4 text-[13px] font-bold text-emerald-700">
+                                        {formatCurrency(invoice.totalPaid)}
+                                      </td>
+
+                                      <td className="px-5 py-4 font-bold text-red-600">
+                                        {formatCurrency(invoice.remainingBalance)}
+                                      </td>
+
+                                      <td className="px-2.5 py-4 text-[13px] font-bold text-violet-700">
+                                        {formatCurrency(invoice.changeAmount)}
+                                      </td>
+
+                                      <td className="px-3 py-4">
+                                        <StatusBadge
+                                          status={invoice.status}
+                                        />
+                                      </td>
+                                    </tr>
+                                  )
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </>
                 )}
@@ -1265,7 +1311,7 @@ function TableHead({
   children: ReactNode;
 }) {
   return (
-    <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+    <th className="px-3 py-4 text-left text-[11px] font-bold uppercase tracking-wide text-slate-500">
       {children}
     </th>
   );

@@ -8,9 +8,11 @@ import {
 } from "react";
 
 import {
+  ArrowLeft,
   RefreshCw,
   XCircle,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import AdjustmentModal from "./adjustmentModal";
 import InventoryFilters from "./inventoryFilters";
@@ -35,6 +37,8 @@ import {
 ===================================================== */
 
 export default function InventoryPage() {
+  const router = useRouter();
+
   /* =================================================
      INVENTORY STATE
   ================================================= */
@@ -240,12 +244,7 @@ export default function InventoryPage() {
           normalized
         );
       } catch (loadError) {
-        console.error(
-          "LOAD INVENTORY ERROR:",
-          loadError
-        );
-
-        setError(
+setError(
           loadError instanceof Error
             ? loadError.message
             : "Failed to load inventory."
@@ -395,12 +394,7 @@ export default function InventoryPage() {
           history
         );
       } catch (loadError) {
-        console.error(
-          "LOAD INVENTORY HISTORY ERROR:",
-          loadError
-        );
-
-        setHistoryError(
+setHistoryError(
           loadError instanceof Error
             ? loadError.message
             : "Failed to load inventory history."
@@ -737,10 +731,6 @@ export default function InventoryPage() {
           weightEntries.length ===
           0
         ) {
-          alert(
-            "Enter valid bundle weights. Example: 45+34+34"
-          );
-
           return;
         }
 
@@ -779,10 +769,6 @@ export default function InventoryPage() {
           ) ||
           amount <= 0
         ) {
-          alert(
-            "Enter a valid weight to remove."
-          );
-
           return;
         }
       }
@@ -804,10 +790,6 @@ export default function InventoryPage() {
         ) ||
         amount <= 0
       ) {
-        alert(
-          "Enter a valid stock quantity."
-        );
-
         return;
       }
 
@@ -822,10 +804,6 @@ export default function InventoryPage() {
           amount
         )
       ) {
-        alert(
-          "PCS stock must be a whole number."
-        );
-
         return;
       }
     }
@@ -840,12 +818,6 @@ export default function InventoryPage() {
       ) ||
       amount <= 0
     ) {
-      alert(
-        isWeightProduct
-          ? "Enter valid bundle weights."
-          : "Enter a valid stock quantity."
-      );
-
       return;
     }
 
@@ -859,10 +831,6 @@ export default function InventoryPage() {
       amount >
         selectedItem.stock
     ) {
-      alert(
-        `Cannot remove ${amount} ${selectedItem.unit}. Current stock is only ${selectedItem.stock} ${selectedItem.unit}.`
-      );
-
       return;
     }
 
@@ -986,38 +954,6 @@ export default function InventoryPage() {
         loadInventory(),
         loadInventoryHistory(),
       ]);
-
-      /* ===========================================
-         SUCCESS MESSAGE
-
-         Save selected values before closing state.
-      =========================================== */
-
-      let successMessage =
-        data?.message ||
-        "Stock updated successfully.";
-
-      if (
-        isWeightProduct &&
-        adjustmentType ===
-          "add"
-      ) {
-        successMessage =
-          `Stock added successfully.\n\n` +
-          `Weight: ${amount} KG\n` +
-          `Bundles: ${weightEntries.length}\n` +
-          `Entries: ${weightEntriesText}`;
-      } else if (
-        adjustmentType ===
-        "add"
-      ) {
-        successMessage =
-          `Stock added successfully: +${amount} ${selectedItem.unit}`;
-      } else {
-        successMessage =
-          `Stock removed successfully: -${amount} ${selectedItem.unit}`;
-      }
-
       /* ===========================================
          CLOSE MODAL
       =========================================== */
@@ -1037,25 +973,10 @@ export default function InventoryPage() {
       setAdjustmentType(
         "add"
       );
-
-      alert(
-        successMessage
-      );
-    } catch (
+} catch (
       adjustmentError
     ) {
-      console.error(
-        "STOCK ADJUSTMENT ERROR:",
-        adjustmentError
-      );
-
-      alert(
-        adjustmentError instanceof
-          Error
-          ? adjustmentError.message
-          : "Failed to update stock."
-      );
-    } finally {
+} finally {
       setAdjustmentSaving(
         false
       );
@@ -1067,44 +988,47 @@ export default function InventoryPage() {
   ================================================= */
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-6 lg:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="min-h-screen bg-slate-50 p-3 sm:p-4 md:p-6 lg:p-8">
+      <div className="mx-auto max-w-7xl space-y-4 sm:space-y-6">
 
         {/* =================================================
             HEADER
         ================================================= */}
 
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Inventory
-            </h1>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Monitor product stock,
-              inventory value, stock
-              status and movement
-              history.
-            </p>
-          </div>
-
-          {/* ===============================================
-              HEADER ACTIONS
-          =============================================== */}
-
-          <div className="flex flex-col gap-3 sm:flex-row">
-
+          <div className="flex min-w-0 items-start gap-3">
             <button
               type="button"
-              onClick={
-                refreshAll
-              }
+              onClick={() => router.push("/dashboard")}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+              aria-label="Back to Dashboard"
+              title="Back to Dashboard"
+            >
+              <ArrowLeft size={19} />
+            </button>
+
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                Inventory
+              </h1>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Monitor product stock, inventory value, stock status and movement history.
+              </p>
+            </div>
+          </div>
+
+          {/* HEADER ACTIONS */}
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:flex md:shrink-0">
+            <button
+              type="button"
+              onClick={refreshAll}
               disabled={
                 loading ||
                 historyLoading
               }
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
             >
               <RefreshCw
                 size={17}
@@ -1118,10 +1042,6 @@ export default function InventoryPage() {
 
               Refresh
             </button>
-
-            {/* =============================================
-                INVENTORY VALUE
-            ============================================= */}
 
             <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
               <p className="text-xs text-slate-500">

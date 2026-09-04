@@ -6,6 +6,9 @@ import {
   useState,
 } from "react";
 
+import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
+
 type SaleRow = {
   id: number;
   invoiceNumber: string;
@@ -79,6 +82,8 @@ const EMPTY: ReportData = {
 };
 
 export default function ReportsPage() {
+  const router = useRouter();
+
   const [period, setPeriod] =
     useState("Today");
 
@@ -163,41 +168,44 @@ export default function ReportsPage() {
     );
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            Reports
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Live sales, profit and business performance from database
-          </p>
-        </div>
+    <div className="min-h-screen bg-slate-50 p-3 sm:p-4 md:p-6 lg:p-8">
+      <div className="mx-auto max-w-[1600px]">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard")}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+              aria-label="Back to Dashboard"
+              title="Back to Dashboard"
+            >
+              <ArrowLeft size={19} />
+            </button>
 
-        <div className="flex gap-2">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                Reports
+              </h1>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Live sales, profit and business performance from database
+              </p>
+            </div>
+          </div>
+
           <select
             value={period}
             onChange={(event) =>
-              setPeriod(
-                event.target.value
-              )
+              setPeriod(event.target.value)
             }
-            className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500"
+            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 sm:w-auto"
           >
             <option>Today</option>
             <option>This Week</option>
             <option>This Month</option>
             <option>This Year</option>
           </select>
-
-          <button
-            onClick={loadReports}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
-          >
-            Reload
-          </button>
         </div>
-      </div>
 
       {error && (
         <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
@@ -277,121 +285,181 @@ export default function ReportsPage() {
             </p>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-225">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  {[
-                    "Invoice",
-                    "Date",
-                    "Customer",
-                    "Items/KG",
-                    "Payment",
-                    "Amount",
-                    "Profit",
-                    "Status",
-                  ].map((heading) => (
-                    <th
-                      key={heading}
-                      className="px-5 py-4 text-left text-xs font-bold uppercase text-slate-500"
-                    >
-                      {heading}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
+          {loading ? (
+            <div className="px-4 py-12 text-center text-sm text-slate-500">
+              Loading reports...
+            </div>
+          ) : data.sales.length === 0 ? (
+            <div className="px-4 py-12 text-center text-sm text-slate-500">
+              No sales found for this period.
+            </div>
+          ) : (
+            <>
+              {/* MOBILE / TABLET / SMALL DESKTOP CARDS */}
+              <div className="divide-y divide-slate-100 xl:hidden">
+                {data.sales.map((sale) => (
+                  <div key={sale.id} className="p-4 sm:p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="wrap-break-word font-bold text-blue-600">
+                          {sale.invoiceNumber}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {new Date(sale.date).toLocaleDateString("en-PK")}
+                        </p>
+                      </div>
 
-              <tbody>
-                {!loading &&
-                  data.sales.length ===
-                    0 && (
-                    <tr>
-                      <td
-                        colSpan={8}
-                        className="px-5 py-12 text-center text-sm text-slate-500"
+                      <span
+                        className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
+                          sale.status === "PAID"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : sale.status === "PARTIAL"
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-red-50 text-red-700"
+                        }`}
                       >
-                        No sales found for this period.
-                      </td>
-                    </tr>
-                  )}
+                        {sale.status}
+                      </span>
+                    </div>
 
-                {loading && (
-                  <tr>
-                    <td
-                      colSpan={8}
-                      className="px-5 py-12 text-center text-sm text-slate-500"
-                    >
-                      Loading reports...
-                    </td>
-                  </tr>
-                )}
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs text-slate-400">Customer</p>
+                        <p className="mt-1 wrap-break-word text-sm font-semibold text-slate-700">
+                          {sale.customer}
+                        </p>
+                      </div>
 
-                {data.sales.map(
-                  (sale) => (
-                    <tr
-                      key={sale.id}
-                      className="border-b border-slate-100 hover:bg-slate-50"
-                    >
-                      <td className="px-5 py-4 font-bold text-blue-600">
-                        {sale.invoiceNumber}
-                      </td>
-                      <td className="px-5 py-4 text-sm text-slate-500">
-                        {new Date(
-                          sale.date
-                        ).toLocaleDateString(
-                          "en-PK"
-                        )}
-                      </td>
-                      <td className="px-5 py-4 font-semibold text-slate-800">
-                        {sale.customer}
-                      </td>
-                      <td className="px-5 py-4 text-sm font-semibold">
-                        {Number(
-                          sale.items
-                        ).toLocaleString(
-                          "en-PK",
-                          {
-                            maximumFractionDigits:
-                              2,
-                          }
-                        )}
-                      </td>
-                      <td className="px-5 py-4">
-                        <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs text-slate-400">Items / KG</p>
+                        <p className="mt-1 text-sm font-bold text-slate-900">
+                          {Number(sale.items).toLocaleString("en-PK", {
+                            maximumFractionDigits: 2,
+                          })}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs text-slate-400">Payment</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-700">
                           {sale.payment}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 font-bold text-slate-900">
-                        {formatPrice(
-                          sale.amount
-                        )}
-                      </td>
-                      <td className="px-5 py-4 font-bold text-emerald-700">
-                        {formatPrice(
-                          sale.profit
-                        )}
-                      </td>
-                      <td className="px-5 py-4">
-                        <span
-                          className={`rounded-full px-3 py-1.5 text-xs font-bold ${
-                            sale.status ===
-                            "PAID"
-                              ? "bg-emerald-50 text-emerald-700"
-                              : sale.status ===
-                                  "PARTIAL"
-                                ? "bg-amber-50 text-amber-700"
-                                : "bg-red-50 text-red-700"
-                          }`}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs text-slate-400">Amount</p>
+                        <p className="mt-1 text-sm font-bold text-slate-900">
+                          {formatPrice(sale.amount)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 rounded-xl bg-emerald-50 p-3">
+                      <p className="text-xs text-emerald-600">Profit</p>
+                      <p className="mt-1 text-sm font-bold text-emerald-700">
+                        {formatPrice(sale.profit)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* DESKTOP TABLE - NO HORIZONTAL SCROLL */}
+              <div className="hidden xl:block">
+                <table className="w-full table-fixed">
+                  <colgroup>
+                    <col className="w-[14%]" />
+                    <col className="w-[11%]" />
+                    <col className="w-[15%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[12%]" />
+                  </colgroup>
+
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50">
+                      {[
+                        "Invoice",
+                        "Date",
+                        "Customer",
+                        "Items/KG",
+                        "Payment",
+                        "Amount",
+                        "Profit",
+                        "Status",
+                      ].map((heading) => (
+                        <th
+                          key={heading}
+                          className="px-2.5 py-4 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500"
                         >
-                          {sale.status}
-                        </span>
-                      </td>
+                          {heading}
+                        </th>
+                      ))}
                     </tr>
-                  )
-                )}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+
+                  <tbody>
+                    {data.sales.map((sale) => (
+                      <tr
+                        key={sale.id}
+                        className="border-b border-slate-100 hover:bg-slate-50"
+                      >
+                        <td className="px-2.5 py-4 align-top text-[13px] font-bold text-blue-600">
+                          <span className="wrap-break-word">
+                            {sale.invoiceNumber}
+                          </span>
+                        </td>
+
+                        <td className="px-2.5 py-4 align-top text-[13px] text-slate-500">
+                          {new Date(sale.date).toLocaleDateString("en-PK")}
+                        </td>
+
+                        <td className="px-2.5 py-4 align-top text-[13px] font-semibold text-slate-800">
+                          <span className="wrap-break-word">{sale.customer}</span>
+                        </td>
+
+                        <td className="px-2.5 py-4 align-top text-[13px] font-semibold">
+                          {Number(sale.items).toLocaleString("en-PK", {
+                            maximumFractionDigits: 2,
+                          })}
+                        </td>
+
+                        <td className="px-2.5 py-4 align-top">
+                          <span className="inline-flex rounded-lg bg-slate-100 px-2 py-1.5 text-[11px] font-semibold text-slate-600">
+                            {sale.payment}
+                          </span>
+                        </td>
+
+                        <td className="px-2.5 py-4 align-top text-[13px] font-bold text-slate-900">
+                          {formatPrice(sale.amount)}
+                        </td>
+
+                        <td className="px-2.5 py-4 align-top text-[13px] font-bold text-emerald-700">
+                          {formatPrice(sale.profit)}
+                        </td>
+
+                        <td className="px-2.5 py-4 align-top">
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                              sale.status === "PAID"
+                                ? "bg-emerald-50 text-emerald-700"
+                                : sale.status === "PARTIAL"
+                                  ? "bg-amber-50 text-amber-700"
+                                  : "bg-red-50 text-red-700"
+                            }`}
+                          >
+                            {sale.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="space-y-6">
@@ -479,6 +547,7 @@ export default function ReportsPage() {
             )}
           </Panel>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -7,6 +7,9 @@ import {
   useState,
 } from "react";
 
+import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
+
 type LogStatus =
   | "Success"
   | "Warning"
@@ -157,6 +160,7 @@ function formatDate(
 }
 
 export default function AuditLogsPage() {
+  const router = useRouter();
   const [logs, setLogs] =
     useState<AuditLog[]>([]);
 
@@ -222,13 +226,7 @@ export default function AuditLogsPage() {
                 log !== null
             )
         );
-      } catch (error) {
-        window.alert(
-          error instanceof Error
-            ? error.message
-            : "Failed to load audit logs."
-        );
-      } finally {
+      } catch {} finally {
         setLoading(false);
       }
     }, []);
@@ -297,12 +295,6 @@ export default function AuditLogsPage() {
     ]);
 
   async function clearLogs() {
-    const confirmed =
-      window.confirm(
-        "Are you sure you want to clear all audit logs?"
-      );
-
-    if (!confirmed) return;
 
     try {
       const response =
@@ -317,13 +309,7 @@ export default function AuditLogsPage() {
 
       setLogs([]);
       setSelectedLog(null);
-    } catch (error) {
-      window.alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to clear audit logs."
-      );
-    }
+    } catch {}
   }
 
   const successful =
@@ -348,42 +334,39 @@ export default function AuditLogsPage() {
     ).length;
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="min-h-screen bg-slate-50 p-3 sm:p-4 md:p-6 lg:p-8">
+      <div className="mx-auto max-w-[1600px] space-y-4 sm:space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">
-              Audit Logs
-            </h1>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Track user activity
-              and system changes
-            </p>
-          </div>
-
-          <div className="flex gap-2">
+          <div className="flex min-w-0 items-start gap-3">
             <button
-              onClick={() =>
-                void loadLogs()
-              }
-              className="rounded-xl border bg-white px-4 py-3 text-sm font-bold"
+              type="button"
+              onClick={() => router.push("/dashboard")}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+              aria-label="Back to Dashboard"
+              title="Back to Dashboard"
             >
-              Refresh
+              <ArrowLeft size={19} />
             </button>
 
-            <button
-              disabled={
-                logs.length === 0
-              }
-              onClick={() =>
-                void clearLogs()
-              }
-              className="rounded-xl bg-red-50 px-5 py-3 text-sm font-bold text-red-600 disabled:opacity-50"
-            >
-              Clear Logs
-            </button>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                Audit Logs
+              </h1>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Track user activity and system changes
+              </p>
+            </div>
           </div>
+
+          <button
+            type="button"
+            disabled={logs.length === 0}
+            onClick={() => void clearLogs()}
+            className="w-full rounded-xl bg-red-50 px-5 py-3 text-sm font-bold text-red-600 disabled:opacity-50 sm:w-auto"
+          >
+            Clear Logs
+          </button>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -419,7 +402,7 @@ export default function AuditLogsPage() {
                 )
               }
               placeholder="Search user, action or description..."
-              className="rounded-xl border bg-slate-50 px-4 py-3"
+              className="w-full min-w-0 rounded-xl border bg-slate-50 px-4 py-3"
             />
 
             <select
@@ -431,7 +414,7 @@ export default function AuditLogsPage() {
                   event.target.value
                 )
               }
-              className="rounded-xl border bg-slate-50 px-4 py-3"
+              className="w-full min-w-0 rounded-xl border bg-slate-50 px-4 py-3"
             >
               {modules.map(
                 (module) => (
@@ -457,7 +440,7 @@ export default function AuditLogsPage() {
                   event.target.value
                 )
               }
-              className="rounded-xl border bg-slate-50 px-4 py-3"
+              className="w-full min-w-0 rounded-xl border bg-slate-50 px-4 py-3"
             >
               <option value="All">
                 All Status
@@ -478,136 +461,187 @@ export default function AuditLogsPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-2xl border bg-white shadow-sm">
-          <table className="w-full min-w-275">
-            <thead className="bg-slate-50">
-              <tr>
-                {[
-                  "Date & Time",
-                  "User",
-                  "Action",
-                  "Module",
-                  "Description",
-                  "Status",
-                  "View",
-                ].map((heading) => (
-                  <th
-                    key={heading}
-                    className="px-5 py-4 text-left text-xs font-bold uppercase text-slate-500"
-                  >
-                    {heading}
-                  </th>
-                ))}
-              </tr>
-            </thead>
+        <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+          {loading ? (
+            <div className="p-12 text-center text-sm text-slate-500">
+              Loading audit logs...
+            </div>
+          ) : filteredLogs.length === 0 ? (
+            <div className="p-12 text-center text-sm text-slate-500">
+              No audit logs found.
+            </div>
+          ) : (
+            <>
+              {/* MOBILE / TABLET CARDS */}
+              <div className="divide-y divide-slate-100 xl:hidden">
+                {filteredLogs.map((log) => (
+                  <div key={log.id} className="p-4 sm:p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="break-words font-bold text-slate-900">
+                          {log.userName}
+                        </p>
 
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="p-10 text-center text-sm text-slate-500"
-                  >
-                    Loading audit
-                    logs...
-                  </td>
-                </tr>
-              ) : filteredLogs.length ===
-                0 ? (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="p-16 text-center"
-                  >
-                    No audit logs
-                    found.
-                  </td>
-                </tr>
-              ) : (
-                filteredLogs.map(
-                  (log) => (
-                    <tr
-                      key={log.id}
-                      className="border-t hover:bg-slate-50"
+                        <p className="mt-1 break-words text-xs text-slate-500">
+                          {log.userRole}
+                        </p>
+                      </div>
+
+                      <StatusBadge status={log.status} />
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs text-slate-400">
+                          Action
+                        </p>
+                        <p className="mt-1 break-words text-sm font-bold text-slate-800">
+                          {log.action}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs text-slate-400">
+                          Module
+                        </p>
+                        <p className="mt-1 break-words text-sm font-semibold text-slate-700">
+                          {getModuleIcon(log.module)} {log.module}
+                        </p>
+                      </div>
+
+                      <div className="col-span-2 rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs text-slate-400">
+                          Date & Time
+                        </p>
+                        <p className="mt-1 break-words text-sm font-semibold text-slate-700">
+                          {formatDate(log.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs text-slate-400">
+                        Description
+                      </p>
+                      <p className="mt-1 break-words text-sm leading-6 text-slate-600">
+                        {log.description}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedLog(log)}
+                      className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700"
                     >
-                      <td className="px-5 py-4 text-sm">
-                        {formatDate(
-                          log.createdAt
-                        )}
-                      </td>
+                      View Details
+                    </button>
+                  </div>
+                ))}
+              </div>
 
-                      <td className="px-5 py-4">
-                        <p className="font-bold">
-                          {
-                            log.userName
-                          }
-                        </p>
+              {/* DESKTOP TABLE - NO HORIZONTAL SCROLL */}
+              <div className="hidden xl:block">
+                <table className="w-full table-fixed">
+                  <colgroup>
+                    <col className="w-[15%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[27%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[10%]" />
+                  </colgroup>
 
-                        <p className="text-xs text-slate-500">
-                          {
-                            log.userRole
-                          }
-                        </p>
-                      </td>
-
-                      <td className="px-5 py-4 text-sm font-bold">
-                        {
-                          log.action
-                        }
-                      </td>
-
-                      <td className="px-5 py-4">
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">
-                          {getModuleIcon(
-                            log.module
-                          )}{" "}
-                          {
-                            log.module
-                          }
-                        </span>
-                      </td>
-
-                      <td className="max-w-80 px-5 py-4 text-sm text-slate-500">
-                        <p className="truncate">
-                          {
-                            log.description
-                          }
-                        </p>
-                      </td>
-
-                      <td className="px-5 py-4">
-                        <StatusBadge
-                          status={
-                            log.status
-                          }
-                        />
-                      </td>
-
-                      <td className="px-5 py-4">
-                        <button
-                          onClick={() =>
-                            setSelectedLog(
-                              log
-                            )
-                          }
-                          className="rounded-lg border px-3 py-2 text-xs font-bold"
+                  <thead className="bg-slate-50">
+                    <tr>
+                      {[
+                        "Date & Time",
+                        "User",
+                        "Action",
+                        "Module",
+                        "Description",
+                        "Status",
+                        "View",
+                      ].map((heading) => (
+                        <th
+                          key={heading}
+                          className="px-2.5 py-4 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500"
                         >
-                          View
-                        </button>
-                      </td>
+                          {heading}
+                        </th>
+                      ))}
                     </tr>
-                  )
-                )
-              )}
-            </tbody>
-          </table>
+                  </thead>
+
+                  <tbody>
+                    {filteredLogs.map((log) => (
+                      <tr
+                        key={log.id}
+                        className="border-t hover:bg-slate-50"
+                      >
+                        <td className="px-2.5 py-4 align-top text-[12px]">
+                          <span className="break-words">
+                            {formatDate(log.createdAt)}
+                          </span>
+                        </td>
+
+                        <td className="px-2.5 py-4 align-top">
+                          <p className="break-words text-[13px] font-bold text-slate-900">
+                            {log.userName}
+                          </p>
+
+                          <p className="mt-1 break-words text-[11px] text-slate-500">
+                            {log.userRole}
+                          </p>
+                        </td>
+
+                        <td className="px-2.5 py-4 align-top text-[13px] font-bold">
+                          <span className="break-words">
+                            {log.action}
+                          </span>
+                        </td>
+
+                        <td className="px-2.5 py-4 align-top">
+                          <span className="inline-flex max-w-full items-center rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold">
+                            <span className="break-words">
+                              {getModuleIcon(log.module)} {log.module}
+                            </span>
+                          </span>
+                        </td>
+
+                        <td className="px-2.5 py-4 align-top text-[12px] text-slate-500">
+                          <p className="break-words">
+                            {log.description}
+                          </p>
+                        </td>
+
+                        <td className="px-2.5 py-4 align-top">
+                          <StatusBadge status={log.status} />
+                        </td>
+
+                        <td className="px-2.5 py-4 align-top">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedLog(log)}
+                            className="w-full rounded-lg border px-2 py-2 text-[11px] font-bold"
+                          >
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
       {selectedLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b p-5">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-3 sm:flex sm:items-center sm:justify-center sm:p-4">
+          <div className="mx-auto my-4 w-full max-w-xl rounded-2xl bg-white shadow-2xl sm:my-0">
+            <div className="flex items-center justify-between gap-3 border-b p-4 sm:p-5">
               <div>
                 <h2 className="text-xl font-bold">
                   Activity Details
@@ -628,7 +662,7 @@ export default function AuditLogsPage() {
               </button>
             </div>
 
-            <div className="space-y-3 p-5">
+            <div className="space-y-3 p-4 sm:p-5">
               <Detail
                 label="Date & Time"
                 value={formatDate(
@@ -683,7 +717,7 @@ export default function AuditLogsPage() {
                 </p>
               </div>
 
-              <div className="flex items-center justify-between rounded-xl bg-slate-50 p-4">
+              <div className="flex flex-col gap-1 rounded-xl bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                 <span className="text-sm font-semibold">
                   Status
                 </span>
@@ -696,12 +730,12 @@ export default function AuditLogsPage() {
               </div>
             </div>
 
-            <div className="flex justify-end border-t p-5">
+            <div className="border-t p-4 sm:flex sm:justify-end sm:p-5">
               <button
                 onClick={() =>
                   setSelectedLog(null)
                 }
-                className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white"
+                className="w-full rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white sm:w-auto"
               >
                 Close
               </button>
@@ -767,7 +801,7 @@ function Detail({
         {label}
       </span>
 
-      <span className="text-sm font-bold">
+      <span className="break-words text-sm font-bold">
         {value}
       </span>
     </div>

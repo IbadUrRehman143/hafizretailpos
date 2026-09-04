@@ -8,6 +8,9 @@ import {
   type FormEvent,
 } from "react";
 
+import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
+
 import InvoiceItems from "./inoviceItems";
 import InvoiceSummary from "./invoiceSummary";
 import InvoicePrint from "./InvoicePrint";
@@ -226,6 +229,7 @@ function safeNumber(
 ========================================= */
 
 export default function InvoicePage() {
+  const router = useRouter();
   /* =========================================
      PRODUCTS
   ========================================= */
@@ -366,6 +370,14 @@ export default function InvoicePage() {
     setSaving,
   ] =
     useState(false);
+
+  const [
+    pageMessage,
+    setPageMessage,
+  ] = useState<{
+    type: "error" | "success";
+    text: string;
+  } | null>(null);
 
   /* =========================================
      INITIAL PAGE + URL
@@ -539,10 +551,6 @@ export default function InvoicePage() {
             cleanProducts
           );
         } catch (error) {
-          console.error(
-            "LOAD PRODUCTS ERROR:",
-            error
-          );
 
           setProducts([]);
 
@@ -645,9 +653,7 @@ export default function InvoicePage() {
       items.length ===
       0
     ) {
-      alert(
-        "At least one product is required."
-      );
+      setPageMessage({ type: "error", text: String("At least one product is required.") });
 
       return false;
     }
@@ -670,9 +676,7 @@ export default function InvoicePage() {
         item.productId ===
         null
       ) {
-        alert(
-          `Row ${row}: Product is required.`
-        );
+        setPageMessage({ type: "error", text: String(`Row ${row}: Product is required.`) });
 
         return false;
       }
@@ -695,12 +699,10 @@ export default function InvoicePage() {
         ) ||
         quantity <= 0
       ) {
-        alert(
-          item.type ===
+        setPageMessage({ type: "error", text: String(item.type ===
             "weight"
             ? `Row ${row}: KG / Weight is required.`
-            : `Row ${row}: Quantity is required.`
-        );
+            : `Row ${row}: Quantity is required.`) });
 
         return false;
       }
@@ -718,9 +720,7 @@ export default function InvoicePage() {
         ) ||
         rate <= 0
       ) {
-        alert(
-          `Row ${row}: Rate / Price is required.`
-        );
+        setPageMessage({ type: "error", text: String(`Row ${row}: Rate / Price is required.`) });
 
         return false;
       }
@@ -818,9 +818,7 @@ export default function InvoicePage() {
         );
 
       if (!product) {
-        alert(
-          "Product not found."
-        );
+        setPageMessage({ type: "error", text: String("Product not found.") });
 
         return false;
       }
@@ -834,8 +832,7 @@ export default function InvoicePage() {
         soldAmount >
         stock
       ) {
-        alert(
-          `${product.name} has only ${Number(
+        setPageMessage({ type: "error", text: String(`${product.name} has only ${Number(
             stock.toFixed(
               2
             )
@@ -844,8 +841,7 @@ export default function InvoicePage() {
             "weight"
               ? "KG"
               : product.unit
-          } available.`
-        );
+          } available.`) });
 
         return false;
       }
@@ -881,9 +877,7 @@ export default function InvoicePage() {
       if (
         !customer.name.trim()
       ) {
-        alert(
-          "Customer Name is required."
-        );
+        setPageMessage({ type: "error", text: String("Customer Name is required.") });
 
         return false;
       }
@@ -891,9 +885,7 @@ export default function InvoicePage() {
       if (
         !customer.phone.trim()
       ) {
-        alert(
-          "Phone Number is required."
-        );
+        setPageMessage({ type: "error", text: String("Phone Number is required.") });
 
         return false;
       }
@@ -903,9 +895,7 @@ export default function InvoicePage() {
           customer.phone
         )
       ) {
-        alert(
-          "Phone Number exactly 11 digits hona chahiye. Sirf numbers allowed hain."
-        );
+        setPageMessage({ type: "error", text: String("Phone Number exactly 11 digits hona chahiye. Sirf numbers allowed hain.") });
 
         return false;
       }
@@ -938,9 +928,7 @@ export default function InvoicePage() {
     if (
       !paymentMethod
     ) {
-      alert(
-        "Payment Method is required."
-      );
+      setPageMessage({ type: "error", text: String("Payment Method is required.") });
 
       return false;
     }
@@ -953,9 +941,7 @@ export default function InvoicePage() {
       amountPaid.trim() ===
       ""
     ) {
-      alert(
-        "Initial Paid Amount is required. Agar payment nahi mili to 0 enter karein."
-      );
+      setPageMessage({ type: "error", text: String("Initial Paid Amount is required. Agar payment nahi mili to 0 enter karein.") });
 
       return false;
     }
@@ -963,9 +949,7 @@ export default function InvoicePage() {
     if (
       numericPaid < 0
     ) {
-      alert(
-        "Paid Amount cannot be negative."
-      );
+      setPageMessage({ type: "error", text: String("Paid Amount cannot be negative.") });
 
       return false;
     }
@@ -983,9 +967,7 @@ export default function InvoicePage() {
       numericPaid >
       totals.grandTotal
     ) {
-      alert(
-        "Paid Amount invoice Grand Total se zyada nahi ho sakta."
-      );
+      setPageMessage({ type: "error", text: String("Paid Amount invoice Grand Total se zyada nahi ho sakta.") });
 
       return false;
     }
@@ -998,9 +980,7 @@ export default function InvoicePage() {
       taxRate.trim() ===
       ""
     ) {
-      alert(
-        "Tax field required hai. Tax nahi hai to 0 enter karein."
-      );
+      setPageMessage({ type: "error", text: String("Tax field required hai. Tax nahi hai to 0 enter karein.") });
 
       return false;
     }
@@ -1009,9 +989,7 @@ export default function InvoicePage() {
       numericTaxRate <
       0
     ) {
-      alert(
-        "Tax rate cannot be negative."
-      );
+      setPageMessage({ type: "error", text: String("Tax rate cannot be negative.") });
 
       return false;
     }
@@ -1024,9 +1002,7 @@ export default function InvoicePage() {
       totals.grandTotal <=
       0
     ) {
-      alert(
-        "Invoice total must be greater than 0."
-      );
+      setPageMessage({ type: "error", text: String("Invoice total must be greater than 0.") });
 
       return false;
     }
@@ -1039,12 +1015,11 @@ export default function InvoicePage() {
   ========================================= */
 
   async function saveInvoice() {
+    setPageMessage(null);
     if (
       invoiceSaved
     ) {
-      alert(
-        "Invoice already saved."
-      );
+      setPageMessage({ type: "error", text: String("Invoice already saved.") });
 
       return;
     }
@@ -1282,27 +1257,13 @@ export default function InvoicePage() {
        * current stock snapshot.
        */
 
-      alert(
-        data.message ||
-          (
-            saleType ===
-            "WHOLESALE"
-              ? "Wholesale invoice saved. Customer and Sales updated."
-              : "Invoice saved successfully."
-          )
-      );
+      setPageMessage({ type: "success", text: String(data.message || (saleType === "WHOLESALE" ? "Wholesale invoice saved. Customer and Sales updated." : "Invoice saved successfully.")) });
     } catch (error) {
-      console.error(
-        "SAVE INVOICE ERROR:",
-        error
-      );
 
-      alert(
-        error instanceof
+      setPageMessage({ type: "error", text: String(error instanceof
           Error
           ? error.message
-          : "Unable to save invoice."
-      );
+          : "Unable to save invoice.") });
     } finally {
       setSaving(
         false
@@ -1350,30 +1311,7 @@ export default function InvoicePage() {
   ========================================= */
 
   async function newInvoice() {
-    const hasItems =
-      items.some(
-        (
-          item
-        ) =>
-          item.productId !==
-          null
-      );
-
-    if (
-      hasItems &&
-      !invoiceSaved
-    ) {
-      const confirmed =
-        window.confirm(
-          "Current invoice is not saved. Create a new invoice?"
-        );
-
-      if (
-        !confirmed
-      ) {
-        return;
-      }
-    }
+    setPageMessage(null);
 
     setInvoiceNumber(
       "AUTO"
@@ -1492,62 +1430,85 @@ export default function InvoicePage() {
 
   return (
     <>
-      <div className="min-h-screen bg-slate-50 p-4 md:p-6 print:hidden">
-        <div className="mx-auto max-w-7xl space-y-6">
+      <div className="min-h-screen bg-slate-50 p-3 sm:p-4 md:p-6 lg:p-8 print:hidden">
+        <div className="mx-auto max-w-[1600px] space-y-4 sm:space-y-6">
           {/* HEADER */}
 
-          <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-2xl font-bold text-slate-900">
-                  Invoice Maker
-                </h1>
+          <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <button
+                type="button"
+                onClick={() => router.push("/dashboard")}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+                aria-label="Back to Dashboard"
+                title="Back to Dashboard"
+              >
+                <ArrowLeft size={19} />
+              </button>
 
-                <span
-                  className={`rounded-full px-3 py-1.5 text-xs font-bold ${
-                    saleType ===
-                    "WHOLESALE"
-                      ? "bg-violet-100 text-violet-700"
-                      : "bg-blue-100 text-blue-700"
-                  }`}
-                >
-                  {
-                    saleType
-                  }
-                </span>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                    Invoice Maker
+                  </h1>
+
+                  <span
+                    className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+                      saleType === "WHOLESALE"
+                        ? "bg-violet-100 text-violet-700"
+                        : "bg-blue-100 text-blue-700"
+                    }`}
+                  >
+                    {saleType}
+                  </span>
+                </div>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Hafiz Electronic Charpai & Cotton West Merchant
+                </p>
               </div>
-
-              <p className="mt-1 text-sm text-slate-500">
-                Hafiz Electronic Charpai & Cotton West Merchant
-              </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {saleType ===
-                "WHOLESALE" && (
+            <div className={`grid gap-2 ${saleType === "WHOLESALE" ? "grid-cols-2" : "grid-cols-1"} sm:flex`}>
+              {saleType === "WHOLESALE" && (
                 <button
                   type="button"
-                  onClick={() => {
-                    window.location.href =
-                      "/dashboard/customers";
-                  }}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-100"
+                  onClick={() => router.push("/dashboard/customers")}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-100 sm:px-4 sm:text-sm"
                 >
-                  ← Customers
+                  Customers
                 </button>
               )}
 
               <button
                 type="button"
-                onClick={() =>
-                  void newInvoice()
-                }
-                className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100"
+                onClick={() => void newInvoice()}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100 sm:px-5 sm:text-sm"
               >
                 + New Invoice
               </button>
             </div>
           </header>
+
+          {pageMessage && (
+            <div
+              className={`flex items-start justify-between gap-3 rounded-xl border p-4 text-sm font-semibold ${
+                pageMessage.type === "success"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-red-200 bg-red-50 text-red-700"
+              }`}
+            >
+              <span className="min-w-0 break-words">{pageMessage.text}</span>
+              <button
+                type="button"
+                onClick={() => setPageMessage(null)}
+                className="shrink-0 text-lg leading-none opacity-60 hover:opacity-100"
+                aria-label="Dismiss message"
+              >
+                ×
+              </button>
+            </div>
+          )}
 
           {/* WHOLESALE INFO */}
 
@@ -1596,7 +1557,7 @@ export default function InvoicePage() {
             onSubmit={
               preventSubmit
             }
-            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
           >
             <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -1625,7 +1586,7 @@ export default function InvoicePage() {
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {/* NAME */}
 
               <InputField
@@ -1756,7 +1717,7 @@ export default function InvoicePage() {
           {/* ITEMS */}
 
           {loadingProducts ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm sm:p-12">
               <p className="font-semibold text-slate-700">
                 Loading products...
               </p>
@@ -1802,7 +1763,7 @@ export default function InvoicePage() {
 
           {/* NOTES */}
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <h2 className="font-bold text-slate-900">
               Notes
             </h2>
@@ -1862,7 +1823,7 @@ export default function InvoicePage() {
 
           {/* ACTIONS */}
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             {invoiceSaved && (
               <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center text-sm font-bold text-emerald-700">
                 {invoiceNumber} saved successfully.
@@ -1870,7 +1831,7 @@ export default function InvoicePage() {
               </div>
             )}
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {/* SAVE */}
 
               <button

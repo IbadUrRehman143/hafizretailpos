@@ -490,6 +490,18 @@ export default function ImportProductsModal({
       const errors:
         string[] = [];
 
+      /*
+        IMPORTANT:
+        Do not reject an Excel row just because its category
+        does not already exist in the Products page.
+
+        /api/products already accepts categoryName and can
+        resolve/create the category.
+
+        Existing category/subcategory IDs are still used when
+        they are available.
+      */
+
       for (
         let index = 0;
         index <
@@ -500,44 +512,27 @@ export default function ImportProductsModal({
           rows[index];
 
         const category =
-          findCategory(
-            row.category
-          );
+          row.category
+            ? findCategory(
+                row.category
+              )
+            : undefined;
 
-        if (!category) {
-          failed += 1;
+        /*
+          Subcategory can only be resolved to an existing ID
+          when its category already exists locally.
 
-          errors.push(
-            `Row ${
-              index + 2
-            }: category "${row.category}" not found.`
-          );
-
-          continue;
-        }
-
+          If category is new, we do not block the product.
+          We send the names to the API instead.
+        */
         const subcategory =
+          category &&
           row.subcategory
             ? findSubcategory(
                 category.id,
                 row.subcategory
               )
             : undefined;
-
-        if (
-          row.subcategory &&
-          !subcategory
-        ) {
-          failed += 1;
-
-          errors.push(
-            `Row ${
-              index + 2
-            }: subcategory "${row.subcategory}" not found in "${category.name}".`
-          );
-
-          continue;
-        }
 
         try {
           const response =
@@ -557,17 +552,21 @@ export default function ImportProductsModal({
                     ...row,
 
                     categoryId:
-                      category.id,
+                      category?.id ??
+                      null,
 
                     categoryName:
-                      category.name,
+                      row.category ||
+                      category?.name ||
+                      "Other",
 
                     subcategoryId:
                       subcategory?.id ??
                       null,
 
                     subcategoryName:
-                      subcategory?.name ??
+                      row.subcategory ||
+                      subcategory?.name ||
                       "",
 
                     openingStockConfirmed:

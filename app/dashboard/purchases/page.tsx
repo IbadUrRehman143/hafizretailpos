@@ -7,6 +7,9 @@ import {
   type FormEvent,
 } from "react";
 
+import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
+
 import PurchaseFilters from "./purchaseFilters";
 import PurchaseModal from "./purchaseModal";
 import PurchaseStats from "./purchaseStats";
@@ -65,6 +68,8 @@ function createEmptyForm(): PurchaseForm {
 }
 
 export default function PurchasesPage() {
+  const router = useRouter();
+
   const [
     purchases,
     setPurchases,
@@ -231,12 +236,7 @@ export default function PurchasesPage() {
         });
       }
     } catch (error) {
-      console.error(
-        "Restore purchase draft:",
-        error
-      );
-
-      window.localStorage.removeItem(
+window.localStorage.removeItem(
         PURCHASE_DRAFT_KEY
       );
     } finally {
@@ -273,11 +273,7 @@ export default function PurchasesPage() {
         JSON.stringify(form)
       );
     } catch (error) {
-      console.error(
-        "Save purchase draft:",
-        error
-      );
-    }
+}
   }, [
     form,
     editingId,
@@ -354,11 +350,7 @@ export default function PurchasesPage() {
           )
       );
     } catch (error) {
-      console.error(
-        "Load purchases:",
-        error
-      );
-    }
+}
   }
 
   /* =================================================
@@ -424,12 +416,7 @@ export default function PurchasesPage() {
 
       return cleanSuppliers;
     } catch (error) {
-      console.error(
-        "Load suppliers:",
-        error
-      );
-
-      return [];
+return [];
     }
   }
 
@@ -515,11 +502,7 @@ export default function PurchasesPage() {
           )
       );
     } catch (error) {
-      console.error(
-        "Load products:",
-        error
-      );
-    }
+}
   }
 
   /* =================================================
@@ -840,11 +823,7 @@ export default function PurchasesPage() {
       supplierForm.phone.trim();
 
     if (!name) {
-      alert(
-        "Supplier name is required."
-      );
-
-      return;
+return;
     }
 
     setSavingSupplier(true);
@@ -875,35 +854,14 @@ export default function PurchasesPage() {
         );
 
       if (!response.ok) {
-        alert(
-          getString(
-            data,
-            "error"
-          ) ||
-            getString(
-              data,
-              "message"
-            ) ||
-            "Failed to add supplier."
-        );
-
-        return;
+return;
       }
 
       const supplierData =
         data?.supplier;
 
       if (!supplierData) {
-        console.error(
-          "Supplier missing from POST response:",
-          data
-        );
-
-        alert(
-          "Supplier save hua lekin API response mein supplier record nahi mila."
-        );
-
-        return;
+return;
       }
 
       const savedSupplier =
@@ -922,16 +880,7 @@ export default function PurchasesPage() {
           savedSupplier.id
         ) <= 0
       ) {
-        console.error(
-          "Invalid supplier returned:",
-          supplierData
-        );
-
-        alert(
-          "Supplier save hua lekin valid database ID nahi mili."
-        );
-
-        return;
+return;
       }
 
       const latestSuppliers =
@@ -975,17 +924,7 @@ export default function PurchasesPage() {
         false
       );
     } catch (error) {
-      console.error(
-        "ADD SUPPLIER ERROR:",
-        error
-      );
-
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Something went wrong while adding supplier."
-      );
-    } finally {
+} finally {
       setSavingSupplier(
         false
       );
@@ -998,35 +937,15 @@ export default function PurchasesPage() {
 
   async function handleDeleteSelectedSupplier() {
     if (!selectedSupplier) {
-      alert(
-        "Please select a supplier first."
-      );
-
-      return;
+return;
     }
 
     if (
       editingId !== null
     ) {
-      alert(
-        "Existing Purchase edit karte waqt supplier delete nahi kiya ja sakta. New Purchase mein supplier manage karein."
-      );
-
-      return;
+return;
     }
-
-    const confirmed =
-      window.confirm(
-        `Delete supplier "${selectedSupplier.name}"?\n\n` +
-          `Agar is supplier ki Purchase history nahi hai to permanently delete hoga.\n\n` +
-          `Agar Purchase history hai to supplier active list se remove hoga, lekin old Purchase history safe rahegi.`
-      );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setDeletingSupplier(
+setDeletingSupplier(
       true
     );
 
@@ -1049,19 +968,7 @@ export default function PurchasesPage() {
         );
 
       if (!response.ok) {
-        alert(
-          getString(
-            data,
-            "error"
-          ) ||
-            getString(
-              data,
-              "message"
-            ) ||
-            "Failed to delete supplier."
-        );
-
-        return;
+return;
       }
 
       setForm(
@@ -1115,26 +1022,10 @@ export default function PurchasesPage() {
         mode ===
         "deactivated"
       ) {
-        alert(
-          "Supplier removed successfully. Old Purchase history safe rakhi gayi hai."
-        );
-      } else {
-        alert(
-          "Supplier deleted successfully."
-        );
-      }
+} else {
+}
     } catch (error) {
-      console.error(
-        "Delete supplier:",
-        error
-      );
-
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Something went wrong while deleting supplier."
-      );
-    } finally {
+} finally {
       setDeletingSupplier(
         false
       );
@@ -1192,9 +1083,7 @@ export default function PurchasesPage() {
     if (
       !form.supplierId
     ) {
-      return alert(
-        "Please select a supplier."
-      );
+      return;
     }
 
     let currentSupplier =
@@ -1226,23 +1115,17 @@ export default function PurchasesPage() {
         ""
       );
 
-      return alert(
-        "Selected supplier was not found. Please select supplier again."
-      );
+      return;
     }
 
     if (
       !form.productId
     ) {
-      return alert(
-        "Please select a product."
-      );
+      return;
     }
 
     if (!selectedProduct) {
-      return alert(
-        "Selected product was not found."
-      );
+      return;
     }
 
     if (
@@ -1253,26 +1136,20 @@ export default function PurchasesPage() {
         bundleWeights.length ===
         0
       ) {
-        return alert(
-          "Please enter bundle weights."
-        );
+        return;
       }
 
       if (
         totalBundleWeight <=
         0
       ) {
-        return alert(
-          "Total weight must be greater than 0."
-        );
+        return;
       }
     } else {
       if (
         quantity <= 0
       ) {
-        return alert(
-          "Quantity must be greater than 0."
-        );
+        return;
       }
 
       if (
@@ -1280,35 +1157,27 @@ export default function PurchasesPage() {
           quantity
         )
       ) {
-        return alert(
-          "PCS quantity must be a whole number."
-        );
+        return;
       }
     }
 
     if (
       purchasePrice <= 0
     ) {
-      return alert(
-        "Purchase price must be greater than 0."
-      );
+      return;
     }
 
     if (
       paidAmount < 0
     ) {
-      return alert(
-        "Paid amount cannot be negative."
-      );
+      return;
     }
 
     if (
       paidAmount >
       totalAmount
     ) {
-      return alert(
-        "Paid amount cannot be greater than purchase total."
-      );
+      return;
     }
 
     const weightEntries =
@@ -1401,19 +1270,7 @@ export default function PurchasesPage() {
         );
 
       if (!response.ok) {
-        alert(
-          getString(
-            data,
-            "error"
-          ) ||
-            getString(
-              data,
-              "message"
-            ) ||
-            "Failed to save purchase."
-        );
-
-        return;
+return;
       }
 
       await Promise.all([
@@ -1429,24 +1286,8 @@ export default function PurchasesPage() {
       setShowForm(false);
 
       resetForm();
-
-      alert(
-        isEditing
-          ? "Purchase updated successfully."
-          : "Purchase saved successfully."
-      );
-    } catch (error) {
-      console.error(
-        "Save purchase:",
-        error
-      );
-
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Something went wrong while saving purchase."
-      );
-    } finally {
+} catch (error) {
+} finally {
       setSaving(false);
     }
   }
@@ -1462,9 +1303,7 @@ export default function PurchasesPage() {
       purchase.items[0];
 
     if (!item) {
-      return alert(
-        "Purchase item not found."
-      );
+      return;
     }
 
     const product =
@@ -1550,11 +1389,7 @@ export default function PurchasesPage() {
     if (
       purchase.remainingAmount <= 0
     ) {
-      alert(
-        "This purchase is already fully paid."
-      );
-
-      return;
+return;
     }
 
     setPaymentPurchase(
@@ -1636,24 +1471,14 @@ export default function PurchasesPage() {
     if (
       amount <= 0
     ) {
-      alert(
-        "Payment amount must be greater than 0."
-      );
-
-      return;
+return;
     }
 
     if (
       amount >
       paymentPurchase.remainingAmount
     ) {
-      alert(
-        `Payment cannot be greater than remaining payable ${formatMoneyForAlert(
-          paymentPurchase.remainingAmount
-        )}.`
-      );
-
-      return;
+return;
     }
 
     setPayingId(
@@ -1689,19 +1514,7 @@ export default function PurchasesPage() {
         );
 
       if (!response.ok) {
-        alert(
-          getString(
-            data,
-            "error"
-          ) ||
-            getString(
-              data,
-              "message"
-            ) ||
-            "Failed to record supplier payment."
-        );
-
-        return;
+return;
       }
 
       await loadPurchases();
@@ -1717,26 +1530,8 @@ export default function PurchasesPage() {
       setSupplierPaymentMethod(
         "Cash"
       );
-
-      alert(
-        getString(
-          data,
-          "message"
-        ) ||
-          "Supplier payment recorded successfully."
-      );
-    } catch (error) {
-      console.error(
-        "Pay supplier:",
-        error
-      );
-
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Something went wrong while recording supplier payment."
-      );
-    } finally {
+} catch (error) {
+} finally {
       setPayingId(
         null
       );
@@ -1750,16 +1545,7 @@ export default function PurchasesPage() {
   async function deletePurchase(
     purchase: Purchase
   ) {
-    const confirmed =
-      window.confirm(
-        `Delete ${purchase.invoiceNo}?\n\nStock added by this purchase will also be reversed.`
-      );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setDeletingId(
+setDeletingId(
       purchase.id
     );
 
@@ -1779,19 +1565,7 @@ export default function PurchasesPage() {
         );
 
       if (!response.ok) {
-        alert(
-          getString(
-            data,
-            "error"
-          ) ||
-            getString(
-              data,
-              "message"
-            ) ||
-            "Failed to delete purchase."
-        );
-
-        return;
+return;
       }
 
       await Promise.all([
@@ -1799,22 +1573,8 @@ export default function PurchasesPage() {
         loadProducts(),
         loadSuppliers(),
       ]);
-
-      alert(
-        "Purchase deleted successfully."
-      );
-    } catch (error) {
-      console.error(
-        "Delete purchase:",
-        error
-      );
-
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Something went wrong while deleting purchase."
-      );
-    } finally {
+} catch (error) {
+} finally {
       setDeletingId(null);
     }
   }
@@ -1824,25 +1584,35 @@ export default function PurchasesPage() {
   ================================================= */
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-6 lg:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="min-h-screen bg-slate-50 p-3 sm:p-4 md:p-6 lg:p-8">
+      <div className="mx-auto max-w-7xl space-y-4 sm:space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Purchases
-            </h1>
+          <div className="flex min-w-0 items-start gap-3">
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard")}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+              aria-label="Back to Dashboard"
+              title="Back to Dashboard"
+            >
+              <ArrowLeft size={19} />
+            </button>
 
-            <p className="mt-1 text-sm text-slate-500">
-              Record supplier purchases, payments and stock receiving.
-            </p>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                Purchases
+              </h1>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Record supplier purchases, payments and stock receiving.
+              </p>
+            </div>
           </div>
 
           <button
             type="button"
-            onClick={
-              openAddPurchase
-            }
-            className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+            onClick={openAddPurchase}
+            className="w-full rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 sm:w-auto"
           >
             + New Purchase
           </button>
@@ -1982,9 +1752,9 @@ export default function PurchasesPage() {
       ================================================= */}
 
       {paymentPurchase && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="border-b border-slate-200 px-6 py-5">
+        <div className="fixed inset-0 z-[70] flex items-end justify-center overflow-y-auto bg-slate-950/50 p-0 sm:items-center sm:p-4">
+          <div className="max-h-[95vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
+            <div className="border-b border-slate-200 px-4 py-4 sm:px-6 sm:py-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900">
@@ -2017,7 +1787,7 @@ export default function PurchasesPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 border-b border-slate-200 bg-slate-50 p-5">
+            <div className="grid grid-cols-1 gap-3 border-b border-slate-200 bg-slate-50 p-4 sm:grid-cols-3 sm:p-5">
               <div className="rounded-xl bg-white p-3">
                 <p className="text-xs font-medium text-slate-500">
                   Purchase
@@ -2059,7 +1829,7 @@ export default function PurchasesPage() {
               onSubmit={
                 handleSupplierPayment
               }
-              className="space-y-5 p-6"
+              className="space-y-5 p-4 sm:p-6"
             >
               <div>
                 <div className="mb-2 flex items-center justify-between gap-3">

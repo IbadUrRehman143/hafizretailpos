@@ -10,6 +10,8 @@ model Product {
 
   name           String
 
+  barcode        String?             @unique
+
   // ========================================
   // CATEGORY
   // ========================================

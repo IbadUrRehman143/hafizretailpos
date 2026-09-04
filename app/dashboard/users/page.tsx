@@ -6,6 +6,8 @@ import {
   useMemo,
   useState,
 } from "react";
+import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 type UserStatus =
   | "Active"
@@ -266,6 +268,7 @@ function normalizeUser(
 }
 
 export default function UsersPage() {
+  const router = useRouter();
   const [users, setUsers] =
     useState<AppUser[]>([]);
 
@@ -444,13 +447,7 @@ export default function UsersPage() {
               )
           );
         }
-      } catch (error) {
-        window.alert(
-          error instanceof Error
-            ? error.message
-            : "Failed to load users."
-        );
-      } finally {
+      } catch {} finally {
         setLoading(false);
       }
     }, []);
@@ -552,34 +549,22 @@ export default function UsersPage() {
     if (
       !userForm.name.trim()
     ) {
-      window.alert(
-        "User name is required."
-      );
       return;
     }
 
     if (
       !userForm.email.trim()
     ) {
-      window.alert(
-        "Email is required."
-      );
       return;
     }
 
     if (
       !userForm.phone.trim()
     ) {
-      window.alert(
-        "Phone is required."
-      );
       return;
     }
 
     if (!userForm.roleId) {
-      window.alert(
-        "Select a role."
-      );
       return;
     }
 
@@ -635,25 +620,12 @@ export default function UsersPage() {
       setEditingUser(null);
 
       await loadData();
-    } catch (error) {
-      window.alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to save user."
-      );
-    }
+    } catch {}
   }
 
   async function deleteUser(
     user: AppUser
   ) {
-    if (
-      !window.confirm(
-        `Delete ${user.name}?`
-      )
-    ) {
-      return;
-    }
 
     try {
       const response =
@@ -674,13 +646,7 @@ export default function UsersPage() {
       }
 
       await loadData();
-    } catch (error) {
-      window.alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to delete user."
-      );
-    }
+    } catch {}
   }
 
   async function toggleUserStatus(
@@ -717,13 +683,7 @@ export default function UsersPage() {
 
       await readResponse(response);
       await loadData();
-    } catch (error) {
-      window.alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to change status."
-      );
-    }
+    } catch {}
   }
 
   function openAddRole() {
@@ -781,9 +741,6 @@ export default function UsersPage() {
     if (
       !roleForm.name.trim()
     ) {
-      window.alert(
-        "Role name is required."
-      );
       return;
     }
 
@@ -791,9 +748,6 @@ export default function UsersPage() {
       roleForm.permissions
         .length === 0
     ) {
-      window.alert(
-        "Select at least one permission."
-      );
       return;
     }
 
@@ -833,25 +787,12 @@ export default function UsersPage() {
       setEditingRole(null);
 
       await loadData();
-    } catch (error) {
-      window.alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to save role."
-      );
-    }
+    } catch {}
   }
 
   async function deleteRole(
     role: Role
   ) {
-    if (
-      !window.confirm(
-        `Delete role ${role.name}?`
-      )
-    ) {
-      return;
-    }
 
     try {
       const response =
@@ -864,50 +805,54 @@ export default function UsersPage() {
 
       await readResponse(response);
       await loadData();
-    } catch (error) {
-      window.alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to delete role."
-      );
-    }
+    } catch {}
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="min-h-screen bg-slate-50 p-3 sm:p-4 md:p-6 lg:p-8">
+      <div className="mx-auto max-w-[1600px] space-y-4 sm:space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Users & Roles
-            </h1>
+          <div className="flex min-w-0 items-start gap-3">
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard")}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+              aria-label="Back to Dashboard"
+              title="Back to Dashboard"
+            >
+              <ArrowLeft size={19} />
+            </button>
 
-            <p className="mt-1 text-sm text-slate-500">
-              Manage system users,
-              roles and permissions
-            </p>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                Users & Roles
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Manage system users, roles and permissions
+              </p>
+            </div>
           </div>
 
-          <div className="flex gap-2">
-            {tab === "users" ? (
-              <button
-                onClick={openAddUser}
-                className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white"
-              >
-                + Add User
-              </button>
-            ) : (
-              <button
-                onClick={openAddRole}
-                className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white"
-              >
-                + Add Role
-              </button>
-            )}
-          </div>
+          {tab === "users" ? (
+            <button
+              type="button"
+              onClick={openAddUser}
+              className="w-full rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white sm:w-auto"
+            >
+              + Add User
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={openAddRole}
+              className="w-full rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white sm:w-auto"
+            >
+              + Add Role
+            </button>
+          )}
         </div>
 
-        <div className="flex gap-2 rounded-2xl border bg-white p-2">
+        <div className="grid grid-cols-2 gap-2 rounded-2xl border bg-white p-2 sm:flex">
           <button
             onClick={() =>
               setTab("users")
@@ -1039,151 +984,217 @@ export default function UsersPage() {
               </select>
             </div>
 
-            <div className="overflow-x-auto rounded-2xl border bg-white">
-              <table className="w-full min-w-250">
-                <thead className="bg-slate-50">
-                  <tr>
-                    {[
-                      "User",
-                      "Phone",
-                      "Role",
-                      "Branch",
-                      "Permissions",
-                      "Last Login",
-                      "Status",
-                      "Actions",
-                    ].map(
-                      (heading) => (
-                        <th
-                          key={
-                            heading
-                          }
-                          className="px-5 py-4 text-left text-xs font-bold uppercase text-slate-500"
-                        >
-                          {
-                            heading
-                          }
-                        </th>
-                      )
-                    )}
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {!loading &&
-                    filteredUsers.map(
-                      (user) => (
-                        <tr
-                          key={
-                            user.id
-                          }
-                          className="border-t"
-                        >
-                          <td className="px-5 py-4">
-                            <p className="font-bold">
-                              {
-                                user.name
-                              }
+            <div className="overflow-hidden rounded-2xl border bg-white">
+              {loading ? (
+                <div className="p-12 text-center text-sm text-slate-500">
+                  Loading users...
+                </div>
+              ) : filteredUsers.length === 0 ? (
+                <div className="p-12 text-center text-sm text-slate-500">
+                  No users found.
+                </div>
+              ) : (
+                <>
+                  {/* MOBILE / TABLET CARDS */}
+                  <div className="divide-y divide-slate-100 xl:hidden">
+                    {filteredUsers.map((user) => (
+                      <div key={user.id} className="p-4 sm:p-5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="wrap-break-word font-bold text-slate-900">
+                              {user.name}
                             </p>
-
-                            <p className="text-xs text-slate-500">
-                              {
-                                user.email
-                              }
+                            <p className="mt-1 break-all text-xs text-slate-500">
+                              {user.email}
                             </p>
-                          </td>
+                          </div>
 
-                          <td className="px-5 py-4 text-sm">
-                            {
-                              user.phone
-                            }
-                          </td>
+                          <button
+                            type="button"
+                            onClick={() => void toggleUserStatus(user)}
+                            className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
+                              user.status === "Active"
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "bg-slate-100 text-slate-500"
+                            }`}
+                          >
+                            {user.status}
+                          </button>
+                        </div>
 
-                          <td className="px-5 py-4 font-semibold">
-                            {
-                              user.role
-                            }
-                          </td>
+                        <div className="mt-4 grid grid-cols-2 gap-3">
+                          <div className="rounded-xl bg-slate-50 p-3">
+                            <p className="text-xs text-slate-400">Phone</p>
+                            <p className="mt-1 wrap-break-word text-sm font-semibold text-slate-700">
+                              {user.phone || "-"}
+                            </p>
+                          </div>
 
-                          <td className="px-5 py-4 text-sm">
-                            {user.branch ||
-                              "-"}
-                          </td>
+                          <div className="rounded-xl bg-slate-50 p-3">
+                            <p className="text-xs text-slate-400">Role</p>
+                            <p className="mt-1 wrap-break-word text-sm font-semibold text-slate-700">
+                              {user.role || "-"}
+                            </p>
+                          </div>
 
-                          <td className="px-5 py-4">
-                            <button
-                              onClick={() =>
-                                setSelectedUser(
-                                  user
-                                )
-                              }
-                              className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold"
+                          <div className="rounded-xl bg-slate-50 p-3">
+                            <p className="text-xs text-slate-400">Branch</p>
+                            <p className="mt-1 wrap-break-word text-sm font-semibold text-slate-700">
+                              {user.branch || "-"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl bg-slate-50 p-3">
+                            <p className="text-xs text-slate-400">Last Login</p>
+                            <p className="mt-1 wrap-break-word text-sm font-semibold text-slate-700">
+                              {user.lastLogin}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedUser(user)}
+                          className="mt-3 w-full rounded-xl bg-slate-100 px-3 py-2.5 text-xs font-bold text-slate-700"
+                        >
+                          {user.permissions.length} Permissions
+                        </button>
+
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEditUser(user)}
+                            className="rounded-lg border px-3 py-2.5 text-xs font-bold"
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => void deleteUser(user)}
+                            className="rounded-lg bg-red-50 px-3 py-2.5 text-xs font-bold text-red-600"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* DESKTOP TABLE - NO HORIZONTAL SCROLL */}
+                  <div className="hidden xl:block">
+                    <table className="w-full table-fixed">
+                      <colgroup>
+                        <col className="w-[18%]" />
+                        <col className="w-[11%]" />
+                        <col className="w-[11%]" />
+                        <col className="w-[12%]" />
+                        <col className="w-[13%]" />
+                        <col className="w-[13%]" />
+                        <col className="w-[10%]" />
+                        <col className="w-[12%]" />
+                      </colgroup>
+
+                      <thead className="bg-slate-50">
+                        <tr>
+                          {[
+                            "User",
+                            "Phone",
+                            "Role",
+                            "Branch",
+                            "Permissions",
+                            "Last Login",
+                            "Status",
+                            "Actions",
+                          ].map((heading) => (
+                            <th
+                              key={heading}
+                              className="px-2.5 py-4 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500"
                             >
-                              {
-                                user
-                                  .permissions
-                                  .length
-                              }{" "}
-                              Permissions
-                            </button>
-                          </td>
-
-                          <td className="px-5 py-4 text-sm">
-                            {
-                              user.lastLogin
-                            }
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <button
-                              onClick={() =>
-                                void toggleUserStatus(
-                                  user
-                                )
-                              }
-                              className={`rounded-full px-3 py-1 text-xs font-bold ${
-                                user.status ===
-                                "Active"
-                                  ? "bg-emerald-50 text-emerald-700"
-                                  : "bg-slate-100 text-slate-500"
-                              }`}
-                            >
-                              {
-                                user.status
-                              }
-                            </button>
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() =>
-                                  openEditUser(
-                                    user
-                                  )
-                                }
-                                className="rounded-lg border px-3 py-2 text-xs font-bold"
-                              >
-                                Edit
-                              </button>
-
-                              <button
-                                onClick={() =>
-                                  void deleteUser(
-                                    user
-                                  )
-                                }
-                                className="rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-600"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </td>
+                              {heading}
+                            </th>
+                          ))}
                         </tr>
-                      )
-                    )}
-                </tbody>
-              </table>
+                      </thead>
+
+                      <tbody>
+                        {filteredUsers.map((user) => (
+                          <tr key={user.id} className="border-t hover:bg-slate-50">
+                            <td className="px-2.5 py-4 align-top">
+                              <p className="wrap-break-word text-[13px] font-bold text-slate-900">
+                                {user.name}
+                              </p>
+                              <p className="mt-1 break-all text-[11px] text-slate-500">
+                                {user.email}
+                              </p>
+                            </td>
+
+                            <td className="px-2.5 py-4 align-top text-[13px]">
+                              <span className="wrap-break-word">{user.phone}</span>
+                            </td>
+
+                            <td className="px-2.5 py-4 align-top text-[13px] font-semibold">
+                              <span className="wrap-break-word">{user.role || "-"}</span>
+                            </td>
+
+                            <td className="px-2.5 py-4 align-top text-[13px]">
+                              <span className="wrap-break-word">{user.branch || "-"}</span>
+                            </td>
+
+                            <td className="px-2.5 py-4 align-top">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedUser(user)}
+                                className="w-full rounded-lg bg-slate-100 px-2 py-2 text-[11px] font-bold"
+                              >
+                                {user.permissions.length} Permissions
+                              </button>
+                            </td>
+
+                            <td className="px-2.5 py-4 align-top text-[12px]">
+                              <span className="wrap-break-word">{user.lastLogin}</span>
+                            </td>
+
+                            <td className="px-2.5 py-4 align-top">
+                              <button
+                                type="button"
+                                onClick={() => void toggleUserStatus(user)}
+                                className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                                  user.status === "Active"
+                                    ? "bg-emerald-50 text-emerald-700"
+                                    : "bg-slate-100 text-slate-500"
+                                }`}
+                              >
+                                {user.status}
+                              </button>
+                            </td>
+
+                            <td className="px-2.5 py-4 align-top">
+                              <div className="grid gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditUser(user)}
+                                  className="w-full rounded-lg border px-2 py-2 text-[11px] font-bold"
+                                >
+                                  Edit
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => void deleteUser(user)}
+                                  className="w-full rounded-lg bg-red-50 px-2 py-2 text-[11px] font-bold text-red-600"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </div>
           </>
         ) : (
@@ -1193,7 +1204,7 @@ export default function UsersPage() {
                 key={role.id}
                 className="rounded-2xl border bg-white p-5 shadow-sm"
               >
-                <div className="flex justify-between gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:gap-4">
                   <div>
                     <h3 className="font-bold text-slate-900">
                       {role.name}
@@ -1231,7 +1242,7 @@ export default function UsersPage() {
                   )}
                 </div>
 
-                <div className="mt-5 flex gap-2">
+                <div className="mt-5 grid grid-cols-2 gap-2 sm:flex">
                   <button
                     onClick={() =>
                       openEditRole(
@@ -1602,7 +1613,7 @@ function RoleModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
             {permissionOptions.map(
               ([key, label]) => {
                 const checked =
@@ -1665,7 +1676,7 @@ function UserDetails({
       title={user.name}
       onClose={onClose}
     >
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Detail
           label="Email"
           value={user.email}
@@ -1731,9 +1742,9 @@ function Modal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b p-5">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-3 sm:flex sm:items-center sm:justify-center sm:p-4">
+      <div className="mx-auto my-4 max-h-[calc(100vh-2rem)] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl sm:my-0 sm:max-h-[92vh]">
+        <div className="flex items-center justify-between border-b p-4 sm:p-5">
           <h2 className="text-xl font-bold">
             {title}
           </h2>
@@ -1745,7 +1756,7 @@ function Modal({
           </button>
         </div>
 
-        <div className="p-5">
+        <div className="p-4 sm:p-5">
           {children}
         </div>
       </div>
@@ -1763,7 +1774,7 @@ function ModalButtons({
   saveLabel: string;
 }) {
   return (
-    <div className="mt-6 flex justify-end gap-2 border-t pt-5">
+    <div className="mt-6 grid grid-cols-2 gap-2 border-t pt-5 sm:flex sm:justify-end">
       <button
         onClick={onClose}
         className="rounded-xl border px-5 py-3 text-sm font-bold"

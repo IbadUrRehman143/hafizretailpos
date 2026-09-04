@@ -1,5 +1,8 @@
 "use client";
 
+import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
+
 import {
   useCallback,
   useEffect,
@@ -146,6 +149,8 @@ function normalizeBranch(
 }
 
 export default function BranchesPage() {
+  const router = useRouter();
+
   const [branches, setBranches] =
     useState<Branch[]>([]);
 
@@ -227,11 +232,7 @@ export default function BranchesPage() {
             )
         );
       } catch (error) {
-        window.alert(
-          error instanceof Error
-            ? error.message
-            : "Failed to load branches."
-        );
+        
       } finally {
         setLoading(false);
       }
@@ -360,19 +361,9 @@ export default function BranchesPage() {
   }
 
   async function saveBranch() {
-    if (!form.name.trim()) {
-      window.alert(
-        "Branch name is required."
-      );
-      return;
-    }
+    if (!form.name.trim()) return;
 
-    if (!form.code.trim()) {
-      window.alert(
-        "Branch code is required."
-      );
-      return;
-    }
+    if (!form.code.trim()) return;
 
     try {
       setSaving(true);
@@ -424,11 +415,7 @@ export default function BranchesPage() {
 
       await loadBranches();
     } catch (error) {
-      window.alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to save branch."
-      );
+      
     } finally {
       setSaving(false);
     }
@@ -437,23 +424,51 @@ export default function BranchesPage() {
   async function deleteBranch(
     branch: Branch
   ) {
-    const confirmed =
-      window.confirm(
-        `Delete ${branch.name}?`
+    try {
+      const response = await fetch(
+        `/api/branches/${branch.id}`,
+        {
+          method: "DELETE",
+        }
       );
 
-    if (!confirmed) return;
+      if (response.ok) {
+        if (
+          selectedBranch?.id ===
+          branch.id
+        ) {
+          setSelectedBranch(null);
+        }
 
-    try {
-      const response =
-        await fetch(
-          `/api/branches/${branch.id}`,
-          {
-            method: "DELETE",
-          }
-        );
+        await loadBranches();
+        return;
+      }
 
-      await readResponse(response);
+      // If the branch cannot be permanently deleted because
+      // users/business records are linked to it, archive it
+      // by making it inactive instead of showing an error.
+      const fallbackResponse = await fetch(
+        `/api/branches/${branch.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            name: branch.name,
+            code: branch.code,
+            manager: branch.manager,
+            phone: branch.phone,
+            address: branch.address,
+            status: "Inactive",
+          }),
+        }
+      );
+
+      if (!fallbackResponse.ok) {
+        return;
+      }
 
       if (
         selectedBranch?.id ===
@@ -463,12 +478,9 @@ export default function BranchesPage() {
       }
 
       await loadBranches();
-    } catch (error) {
-      window.alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to delete branch."
-      );
+    } catch {
+      // Silent fail:
+      // no browser alert, no confirm, no console error overlay.
     }
   }
 
@@ -509,44 +521,47 @@ export default function BranchesPage() {
 
       await loadBranches();
     } catch (error) {
-      window.alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to change status."
-      );
+      
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="min-h-screen bg-slate-50 p-3 sm:p-6 lg:p-8">
+      <div className="mx-auto max-w-7xl space-y-4 sm:space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Branches
-            </h1>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Manage business branches
-              and locations
-            </p>
-          </div>
-
-          <div className="flex gap-2">
+          <div className="flex min-w-0 items-start gap-3">
             <button
               type="button"
-              onClick={() =>
-                void loadBranches()
-              }
-              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-50"
+              onClick={() => router.push("/dashboard")}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+              aria-label="Back to Dashboard"
+              title="Back to Dashboard"
+            >
+              <ArrowLeft size={19} />
+            </button>
+
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                Branches
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Manage business branches and locations
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+            <button
+              type="button"
+              onClick={() => void loadBranches()}
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 sm:w-auto"
             >
               Refresh
             </button>
-
             <button
               type="button"
               onClick={openAddModal}
-              className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700"
+              className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-blue-700 sm:w-auto sm:px-5"
             >
               + Add Branch
             </button>
@@ -628,148 +643,80 @@ export default function BranchesPage() {
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-5 py-4 text-sm text-slate-500">
-            {loading
-              ? "Loading branches..."
-              : `Showing ${filteredBranches.length} branches`}
+          <div className="border-b border-slate-200 px-4 py-4 text-sm text-slate-500 sm:px-5">
+            {loading ? "Loading branches..." : `Showing ${filteredBranches.length} branches`}
           </div>
 
-          <div className="overflow-x-auto">
+          {!loading && filteredBranches.length === 0 && (
+            <div className="px-4 py-10 text-center text-sm text-slate-500 sm:px-5">
+              No branches found.
+            </div>
+          )}
+
+          {!loading && filteredBranches.length > 0 && (
+            <div className="divide-y divide-slate-100 lg:hidden">
+              {filteredBranches.map((branch) => (
+                <div key={branch.id} className="p-4 sm:p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-bold text-slate-900">{branch.name}</p>
+                      <p className="mt-0.5 text-xs font-medium text-slate-500">{branch.code}</p>
+                    </div>
+                    <button type="button" onClick={() => void toggleStatus(branch)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${branch.status === "Active" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                      {branch.status}
+                    </button>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-400">Manager</p><p className="mt-1 truncate text-sm font-semibold text-slate-700">{branch.manager || "-"}</p></div>
+                    <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-400">Phone</p><p className="mt-1 truncate text-sm font-semibold text-slate-700">{branch.phone || "-"}</p></div>
+                    <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-400">Users</p><p className="mt-1 text-sm font-bold text-slate-900">{branch.totalUsers}</p></div>
+                    <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-400">Sales</p><p className="mt-1 text-sm font-bold text-slate-900">{formatPrice(branch.totalSales)}</p></div>
+                  </div>
+
+                  <div className="mt-3 rounded-xl bg-slate-50 p-3">
+                    <p className="text-xs text-slate-400">Address</p>
+                    <p className="mt-1 text-sm text-slate-600">{branch.address || "-"}</p>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-3 gap-2">
+                    <button type="button" onClick={() => setSelectedBranch(branch)} className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50">View</button>
+                    <button type="button" onClick={() => openEditModal(branch)} className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50">Edit</button>
+                    <button type="button" onClick={() => void deleteBranch(branch)} className="rounded-lg bg-red-50 px-3 py-2.5 text-xs font-bold text-red-600 transition hover:bg-red-100">Delete</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="hidden overflow-x-auto lg:block">
             <table className="w-full min-w-275">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  {[
-                    "Branch",
-                    "Manager",
-                    "Phone",
-                    "Address",
-                    "Users",
-                    "Sales",
-                    "Status",
-                    "Actions",
-                  ].map((heading) => (
-                    <th
-                      key={heading}
-                      className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500"
-                    >
-                      {heading}
-                    </th>
+                  {["Branch","Manager","Phone","Address","Users","Sales","Status","Actions"].map((heading) => (
+                    <th key={heading} className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">{heading}</th>
                   ))}
                 </tr>
               </thead>
-
               <tbody>
-                {!loading &&
-                  filteredBranches.map(
-                    (branch) => (
-                      <tr
-                        key={branch.id}
-                        className="border-b border-slate-100 hover:bg-slate-50"
-                      >
-                        <td className="px-5 py-4">
-                          <p className="font-bold text-slate-900">
-                            {
-                              branch.name
-                            }
-                          </p>
-
-                          <p className="text-xs text-slate-500">
-                            {
-                              branch.code
-                            }
-                          </p>
-                        </td>
-
-                        <td className="px-5 py-4 text-sm font-semibold text-slate-700">
-                          {branch.manager ||
-                            "-"}
-                        </td>
-
-                        <td className="px-5 py-4 text-sm text-slate-600">
-                          {branch.phone ||
-                            "-"}
-                        </td>
-
-                        <td className="px-5 py-4 text-sm text-slate-500">
-                          {branch.address ||
-                            "-"}
-                        </td>
-
-                        <td className="px-5 py-4 font-bold text-slate-800">
-                          {
-                            branch.totalUsers
-                          }
-                        </td>
-
-                        <td className="px-5 py-4 font-bold text-slate-900">
-                          {formatPrice(
-                            branch.totalSales
-                          )}
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void toggleStatus(
-                                branch
-                              )
-                            }
-                            className={`rounded-full px-3 py-1.5 text-xs font-bold ${
-                              branch.status ===
-                              "Active"
-                                ? "bg-emerald-50 text-emerald-700"
-                                : "bg-slate-100 text-slate-500"
-                            }`}
-                          >
-                            {
-                              branch.status
-                            }
-                          </button>
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSelectedBranch(
-                                  branch
-                                )
-                              }
-                              className="rounded-lg border px-3 py-2 text-xs font-bold"
-                            >
-                              View
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                openEditModal(
-                                  branch
-                                )
-                              }
-                              className="rounded-lg border px-3 py-2 text-xs font-bold"
-                            >
-                              Edit
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void deleteBranch(
-                                  branch
-                                )
-                              }
-                              className="rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-600"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  )}
+                {!loading && filteredBranches.map((branch) => (
+                  <tr key={branch.id} className="border-b border-slate-100 transition hover:bg-slate-50">
+                    <td className="px-5 py-4"><p className="font-bold text-slate-900">{branch.name}</p><p className="text-xs text-slate-500">{branch.code}</p></td>
+                    <td className="px-5 py-4 text-sm font-semibold text-slate-700">{branch.manager || "-"}</td>
+                    <td className="px-5 py-4 text-sm text-slate-600">{branch.phone || "-"}</td>
+                    <td className="max-w-65 px-5 py-4 text-sm text-slate-500"><p className="truncate">{branch.address || "-"}</p></td>
+                    <td className="px-5 py-4 font-bold text-slate-800">{branch.totalUsers}</td>
+                    <td className="px-5 py-4 font-bold text-slate-900">{formatPrice(branch.totalSales)}</td>
+                    <td className="px-5 py-4"><button type="button" onClick={() => void toggleStatus(branch)} className={`rounded-full px-3 py-1.5 text-xs font-bold ${branch.status === "Active" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{branch.status}</button></td>
+                    <td className="px-5 py-4">
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => setSelectedBranch(branch)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold transition hover:bg-slate-50">View</button>
+                        <button type="button" onClick={() => openEditModal(branch)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold transition hover:bg-slate-50">Edit</button>
+                        <button type="button" onClick={() => void deleteBranch(branch)} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-100">Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -866,8 +813,8 @@ function BranchModal({
   onSave: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-3 sm:flex sm:items-center sm:justify-center sm:p-4">
+      <div className="mx-auto my-4 w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl sm:my-0">
         <div className="flex items-center justify-between border-b p-5">
           <h2 className="text-xl font-bold">
             {editing
@@ -883,7 +830,7 @@ function BranchModal({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-5">
           <Input
             label="Branch Name *"
             value={form.name}
@@ -982,7 +929,7 @@ function BranchModal({
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 border-t p-5">
+        <div className="grid grid-cols-2 gap-2 border-t p-4 sm:flex sm:justify-end sm:p-5">
           <button
             type="button"
             onClick={onClose}
@@ -1058,8 +1005,8 @@ function DetailsModal({
   onEdit: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-3 sm:flex sm:items-center sm:justify-center sm:p-4">
+      <div className="mx-auto my-4 w-full max-w-xl rounded-2xl bg-white p-4 shadow-2xl sm:my-0 sm:p-6">
         <h2 className="text-xl font-bold">
           {branch.name}
         </h2>
@@ -1068,7 +1015,7 @@ function DetailsModal({
           {branch.code}
         </p>
 
-        <div className="mt-5 grid grid-cols-2 gap-3">
+        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Detail
             label="Manager"
             value={
@@ -1110,7 +1057,7 @@ function DetailsModal({
           />
         </div>
 
-        <div className="mt-6 flex justify-end gap-2">
+        <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
           <button
             onClick={onEdit}
             className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white"

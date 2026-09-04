@@ -1625,6 +1625,13 @@
           },
           "Product": {
             "fields": {
+              "barcode": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
               "brand": {
                 "nullable": false,
                 "type": {
@@ -1859,6 +1866,9 @@
             },
             "storage": {
               "fields": {
+                "barcode": {
+                  "column": "barcode"
+                },
                 "brand": {
                   "column": "brand"
                 },
@@ -4532,6 +4542,11 @@
             },
             "product": {
               "columns": {
+                "barcode": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
                 "brand": {
                   "codecId": "pg/text@1",
                   "default": {
@@ -4766,7 +4781,13 @@
                   "id"
                 ]
               },
-              "uniques": []
+              "uniques": [
+                {
+                  "columns": [
+                    "barcode"
+                  ]
+                }
+              ]
             },
             "purchase": {
               "columns": {
@@ -5876,7 +5897,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "58993b3ccdb1e7ef14ff6fe0a7842fd249dc118d230c4a5c213c8dedf81916b6"
+    "storageHash": "1975fb9a909a96a65e34dbc0a52a8f5f88ea7ba18ae136d04c5e6e3dcbe588f1"
   },
   "execution": {
     "executionHash": "82faaaca295e2a0d7d1220b3b9d3fcfb0d7ec8e4e804a52f1acc12910f0cfb10",

@@ -6,6 +6,9 @@ import {
   useState,
 } from "react";
 
+import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
+
 type Settings = {
   id?: number;
   businessName: string;
@@ -121,6 +124,7 @@ function cleanDecimal(value: string) {
 }
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [settings, setSettings] =
     useState<Settings>(
       defaultSettings
@@ -260,18 +264,14 @@ export default function SettingsPage() {
     if (
       !settings.businessName.trim()
     ) {
-      window.alert(
-        "Business name is required."
-      );
+      setError("Business name is required.");
       return;
     }
 
     if (
       !settings.invoicePrefix.trim()
     ) {
-      window.alert(
-        "Invoice prefix is required."
-      );
+      setError("Invoice prefix is required.");
       return;
     }
 
@@ -287,9 +287,7 @@ export default function SettingsPage() {
       !Number.isFinite(taxRate) ||
       taxRate < 0
     ) {
-      window.alert(
-        "Enter a valid tax rate."
-      );
+      setError("Enter a valid tax rate.");
       return;
     }
 
@@ -299,9 +297,7 @@ export default function SettingsPage() {
       ) ||
       lowStockLimit < 0
     ) {
-      window.alert(
-        "Enter a valid low stock limit."
-      );
+      setError("Enter a valid low stock limit.");
       return;
     }
 
@@ -376,21 +372,11 @@ export default function SettingsPage() {
     }
   }
 
-  function resetForm() {
-    const confirmed =
-      window.confirm(
-        "Reload saved settings from database?"
-      );
-
-    if (!confirmed) return;
-
-    void loadSettings();
-  }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 p-8">
-        <div className="mx-auto max-w-6xl rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm font-semibold text-slate-500">
+      <div className="min-h-screen bg-slate-50 p-3 sm:p-4 md:p-6 lg:p-8">
+        <div className="mx-auto max-w-[1600px] rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500 sm:p-10">
           Loading settings...
         </div>
       </div>
@@ -398,41 +384,41 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-6xl space-y-6">
+    <div className="min-h-screen bg-slate-50 p-3 sm:p-4 md:p-6 lg:p-8">
+      <div className="mx-auto max-w-[1600px] space-y-4 sm:space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Settings
-            </h1>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Manage POS and business
-              settings
-            </p>
-          </div>
-
-          <div className="flex gap-2">
+          <div className="flex min-w-0 items-start gap-3">
             <button
               type="button"
-              onClick={resetForm}
-              disabled={saving}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              onClick={() => router.push("/dashboard")}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+              aria-label="Back to Dashboard"
+              title="Back to Dashboard"
             >
-              Reload
+              <ArrowLeft size={19} />
             </button>
 
-            <button
-              type="button"
-              onClick={saveSettings}
-              disabled={saving}
-              className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              {saving
-                ? "Saving..."
-                : "Save Settings"}
-            </button>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                Settings
+              </h1>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Manage POS and business settings
+              </p>
+            </div>
           </div>
+
+          <button
+            type="button"
+            onClick={saveSettings}
+            disabled={saving}
+            className="w-full rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50 sm:w-auto"
+          >
+            {saving
+              ? "Saving..."
+              : "Save Settings"}
+          </button>
         </div>
 
         {saved && (
@@ -511,7 +497,7 @@ export default function SettingsPage() {
                     event.target.value
                   )
                 }
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                className="w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
               >
                 <option value="PKR">
                   PKR - Pakistani Rupee
@@ -701,7 +687,7 @@ export default function SettingsPage() {
             description="Current application information"
           />
 
-          <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-3 sm:p-6">
+          <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-3 sm:gap-4 sm:p-5 md:p-6">
             <InfoBox
               label="Application"
               value="Hafiz Retail POS"
@@ -742,7 +728,7 @@ function SettingsSection({
         description={description}
       />
 
-      <div className="p-5 sm:p-6">
+      <div className="p-4 sm:p-5 md:p-6">
         {children}
       </div>
     </section>
@@ -759,17 +745,17 @@ function SectionHeader({
   description: string;
 }) {
   return (
-    <div className="flex items-center gap-3 border-b border-slate-200 p-5 sm:p-6">
-      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-xl">
+    <div className="flex items-start gap-3 border-b border-slate-200 p-4 sm:items-center sm:p-5 md:p-6">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-lg sm:h-11 sm:w-11 sm:text-xl">
         {icon}
       </div>
 
-      <div>
-        <h2 className="font-bold text-slate-900">
+      <div className="min-w-0">
+        <h2 className="break-words font-bold text-slate-900">
           {title}
         </h2>
 
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 break-words text-xs text-slate-500">
           {description}
         </p>
       </div>
@@ -813,7 +799,7 @@ function InputField({
             event.target.value
           )
         }
-        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+        className="w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
       />
     </div>
   );
@@ -833,13 +819,13 @@ function ToggleRow({
   ) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-100 bg-slate-50 p-4">
-      <div>
-        <p className="text-sm font-bold text-slate-800">
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3 sm:gap-4 sm:p-4">
+      <div className="min-w-0">
+        <p className="break-words text-sm font-bold text-slate-800">
           {title}
         </p>
 
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 break-words text-xs text-slate-500">
           {description}
         </p>
       </div>

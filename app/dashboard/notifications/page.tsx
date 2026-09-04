@@ -6,6 +6,8 @@ import {
   useMemo,
   useState,
 } from "react";
+import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 type NotificationType =
   | "Sale"
@@ -145,6 +147,7 @@ function formatDateTime(
 }
 
 export default function NotificationsPage() {
+  const router = useRouter();
   const [
     notifications,
     setNotifications,
@@ -209,13 +212,7 @@ export default function NotificationsPage() {
                 item !== null
             )
         );
-      } catch (error) {
-        window.alert(
-          error instanceof Error
-            ? error.message
-            : "Failed to load notifications."
-        );
-      } finally {
+      } catch {} finally {
         setLoading(false);
       }
     }, []);
@@ -312,13 +309,7 @@ export default function NotificationsPage() {
               : null
         );
       }
-    } catch (error) {
-      window.alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to update notification."
-      );
-    }
+    } catch {}
   }
 
   async function openNotification(
@@ -363,25 +354,12 @@ export default function NotificationsPage() {
             isRead: true,
           }))
       );
-    } catch (error) {
-      window.alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to mark notifications."
-      );
-    }
+    } catch {}
   }
 
   async function deleteOne(
     notification: Notification
   ) {
-    if (
-      !window.confirm(
-        "Delete this notification?"
-      )
-    ) {
-      return;
-    }
 
     try {
       const response =
@@ -409,23 +387,10 @@ export default function NotificationsPage() {
       ) {
         setSelected(null);
       }
-    } catch (error) {
-      window.alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to delete notification."
-      );
-    }
+    } catch {}
   }
 
   async function clearAll() {
-    if (
-      !window.confirm(
-        "Delete all notifications?"
-      )
-    ) {
-      return;
-    }
 
     try {
       const response =
@@ -440,69 +405,65 @@ export default function NotificationsPage() {
 
       setNotifications([]);
       setSelected(null);
-    } catch (error) {
-      window.alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to clear notifications."
-      );
-    }
+    } catch {}
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold">
-                Notifications
-              </h1>
+    <div className="min-h-screen bg-slate-50 p-3 sm:p-4 md:p-6 lg:p-8">
+      <div className="mx-auto max-w-[1600px] space-y-4 sm:space-y-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard")}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+              aria-label="Back to Dashboard"
+              title="Back to Dashboard"
+            >
+              <ArrowLeft size={19} />
+            </button>
 
-              {unreadCount >
-                0 && (
-                <span className="rounded-full bg-red-500 px-2.5 py-1 text-xs font-bold text-white">
-                  {unreadCount} New
-                </span>
-              )}
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                  Notifications
+                </h1>
+
+                {unreadCount > 0 && (
+                  <span className="rounded-full bg-red-500 px-2.5 py-1 text-xs font-bold text-white">
+                    {unreadCount} New
+                  </span>
+                )}
+              </div>
+
+              <p className="mt-1 wrap-break-word text-sm text-slate-500">
+                Sales, payments, stock and system activities
+              </p>
             </div>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Sales, payments,
-              stock and system
-              activities
-            </p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex">
             <button
-              disabled={
-                unreadCount === 0
-              }
-              onClick={() =>
-                void markAllRead()
-              }
-              className="rounded-xl border bg-white px-4 py-3 text-sm font-bold disabled:opacity-50"
+              type="button"
+              disabled={unreadCount === 0}
+              onClick={() => void markAllRead()}
+              className="rounded-xl border bg-white px-3 py-3 text-xs font-bold disabled:opacity-50 sm:px-4 sm:text-sm"
             >
               ✓ Mark All Read
             </button>
 
             <button
-              disabled={
-                notifications.length ===
-                0
-              }
-              onClick={() =>
-                void clearAll()
-              }
-              className="rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-600 disabled:opacity-50"
+              type="button"
+              disabled={notifications.length === 0}
+              onClick={() => void clearAll()}
+              className="rounded-xl bg-red-50 px-3 py-3 text-xs font-bold text-red-600 disabled:opacity-50 sm:px-4 sm:text-sm"
             >
               Clear All
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
           <StatCard
             title="Total"
             value={
@@ -544,7 +505,7 @@ export default function NotificationsPage() {
                 onClick={() =>
                   setFilter(type)
                 }
-                className={`rounded-xl px-4 py-2 text-sm font-bold ${
+                className={`rounded-xl px-3 py-2 text-xs font-bold sm:px-4 sm:text-sm ${
                   filter === type
                     ? "bg-blue-600 text-white"
                     : "bg-slate-100 text-slate-600"
@@ -581,7 +542,7 @@ export default function NotificationsPage() {
                   key={
                     notification.id
                   }
-                  className={`flex flex-col gap-4 border-b p-5 sm:flex-row sm:items-center ${
+                  className={`flex flex-col gap-4 border-b p-4 sm:p-5 md:flex-row md:items-center ${
                     notification.isRead
                       ? "bg-white"
                       : "bg-blue-50/50"
@@ -593,7 +554,7 @@ export default function NotificationsPage() {
                         notification
                       )
                     }
-                    className="text-2xl"
+                    className="self-start text-2xl"
                   >
                     {getIcon(
                       notification.type
@@ -606,10 +567,10 @@ export default function NotificationsPage() {
                         notification
                       )
                     }
-                    className="flex-1 text-left"
+                    className="min-w-0 flex-1 text-left"
                   >
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-bold">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <h3 className="wrap-break-word font-bold">
                         {
                           notification.title
                         }
@@ -633,7 +594,7 @@ export default function NotificationsPage() {
                     </p>
                   </button>
 
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-2 gap-2 md:flex md:shrink-0">
                     <button
                       onClick={() =>
                         void updateRead(
@@ -641,7 +602,7 @@ export default function NotificationsPage() {
                           !notification.isRead
                         )
                       }
-                      className="rounded-lg border px-3 py-2 text-xs font-bold"
+                      className="w-full rounded-lg border px-3 py-2.5 text-xs font-bold md:w-auto"
                     >
                       {notification.isRead
                         ? "Unread"
@@ -654,7 +615,7 @@ export default function NotificationsPage() {
                           notification
                         )
                       }
-                      className="rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-600"
+                      className="w-full rounded-lg bg-red-50 px-3 py-2.5 text-xs font-bold text-red-600 md:w-auto"
                     >
                       Delete
                     </button>
@@ -667,9 +628,9 @@ export default function NotificationsPage() {
       </div>
 
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6">
-            <div className="flex items-start justify-between">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-3 sm:flex sm:items-center sm:justify-center sm:p-4">
+          <div className="mx-auto my-4 w-full max-w-lg rounded-2xl bg-white p-4 shadow-2xl sm:my-0 sm:p-6">
+            <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-3xl">
                   {getIcon(
@@ -701,7 +662,7 @@ export default function NotificationsPage() {
               )}
             </p>
 
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
               <button
                 onClick={() =>
                   void updateRead(
@@ -709,7 +670,7 @@ export default function NotificationsPage() {
                     !selected.isRead
                   )
                 }
-                className="rounded-xl border px-4 py-3 text-sm font-bold"
+                className="w-full rounded-xl border px-4 py-3 text-sm font-bold sm:w-auto"
               >
                 {selected.isRead
                   ? "Mark Unread"
@@ -722,7 +683,7 @@ export default function NotificationsPage() {
                     selected
                   )
                 }
-                className="rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white"
+                className="w-full rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white sm:w-auto"
               >
                 Delete
               </button>

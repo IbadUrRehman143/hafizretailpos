@@ -1,5 +1,8 @@
 "use client";
 
+import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
+
 import {
   useEffect,
   useMemo,
@@ -348,6 +351,8 @@ function formatDate(
 ========================================================= */
 
 export default function CustomersPage() {
+  const router = useRouter();
+
   const [
     customers,
     setCustomers,
@@ -525,12 +530,7 @@ export default function CustomersPage() {
         normalized
       );
     } catch (error) {
-      console.error(
-        "Load customers:",
-        error
-      );
-
-      setError(
+setError(
         error instanceof Error
           ? error.message
           : "Failed to load customers."
@@ -710,25 +710,9 @@ export default function CustomersPage() {
   ) {
     event.preventDefault();
 
-    if (
-      !form.name.trim()
-    ) {
-      alert(
-        "Customer name is required."
-      );
+    if (!form.name.trim()) return;
 
-      return;
-    }
-
-    if (
-      !form.phone.trim()
-    ) {
-      alert(
-        "Phone number is required."
-      );
-
-      return;
-    }
+    if (!form.phone.trim()) return;
 
     try {
       setSaving(true);
@@ -814,18 +798,8 @@ export default function CustomersPage() {
       );
 
       resetForm();
-
-      alert(
-        editingId !== null
-          ? "Customer updated successfully."
-          : "Customer saved successfully."
-      );
-    } catch (error) {
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Unable to save customer."
-      );
+} catch {
+      // Silent fail: no browser popup.
     } finally {
       setSaving(false);
     }
@@ -848,15 +822,6 @@ export default function CustomersPage() {
       return;
     }
 
-    const confirmed =
-      window.confirm(
-        `Delete "${customer.name}"?`
-      );
-
-    if (!confirmed) {
-      return;
-    }
-
     try {
       setDeletingId(id);
 
@@ -864,47 +829,67 @@ export default function CustomersPage() {
         await fetch(
           `/api/customers/${id}`,
           {
-            method:
-              "DELETE",
+            method: "DELETE",
           }
         );
 
-      const data =
-        await readApi(
-          response
+      if (response.ok) {
+        await loadCustomers();
+        return;
+      }
+
+      // If permanent delete is blocked because the customer
+      // has business history, archive by setting Inactive.
+      const fallbackResponse =
+        await fetch(
+          `/api/customers/${id}`,
+          {
+            method: "PUT",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body:
+              JSON.stringify({
+                name:
+                  customer.name,
+
+                phone:
+                  customer.phone,
+
+                whatsapp:
+                  customer.whatsapp,
+
+                address:
+                  customer.address,
+
+                type:
+                  customer.type,
+
+                openingBalance:
+                  customer.openingBalance,
+
+                creditLimit:
+                  customer.creditLimit,
+
+                status:
+                  "Inactive",
+              }),
+          }
         );
 
-      if (
-        !response.ok ||
-        data.success === false
-      ) {
-        throw new Error(
-          stringValue(
-            data.error ??
-              data.message,
-            "Unable to delete customer."
-          )
-        );
+      if (!fallbackResponse.ok) {
+        return;
       }
 
       await loadCustomers();
-
-      alert(
-        stringValue(
-          data.message,
-          "Customer deleted successfully."
-        )
-      );
-    } catch (error) {
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Unable to delete customer."
-      );
+    } catch {
+      // Silent fail:
+      // no alert, confirm, or console error overlay.
     } finally {
-      setDeletingId(
-        null
-      );
+      setDeletingId(null);
     }
   }
 
@@ -928,15 +913,7 @@ export default function CustomersPage() {
   async function openReceivePayment(
     customer: Customer
   ) {
-    if (
-      customer.receivable <= 0
-    ) {
-      alert(
-        "This customer has no invoice receivable."
-      );
-
-      return;
-    }
+    if (customer.receivable <= 0) return;
 
     setPaymentCustomer(
       customer
@@ -1044,12 +1021,7 @@ export default function CustomersPage() {
           )
       );
     } catch (error) {
-      console.error(
-        "Load customer payment history:",
-        error
-      );
-
-      setPaymentHistory(
+setPaymentHistory(
         []
       );
     } finally {
@@ -1097,28 +1069,9 @@ export default function CustomersPage() {
         paymentAmount
       );
 
-    if (
-      amount <= 0
-    ) {
-      alert(
-        "Payment amount must be greater than 0."
-      );
+    if (amount <= 0) return;
 
-      return;
-    }
-
-    if (
-      amount >
-      paymentCustomer.receivable
-    ) {
-      alert(
-        `Payment cannot be greater than receivable ${formatCurrency(
-          paymentCustomer.receivable
-        )}.`
-      );
-
-      return;
-    }
+    if (amount > paymentCustomer.receivable) return;
 
     try {
       setPaymentSaving(
@@ -1163,15 +1116,7 @@ export default function CustomersPage() {
       }
 
       await loadCustomers();
-
-      alert(
-        stringValue(
-          data.message,
-          "Customer payment received successfully."
-        )
-      );
-
-      setPaymentCustomer(
+setPaymentCustomer(
         null
       );
 
@@ -1186,17 +1131,8 @@ export default function CustomersPage() {
       setPaymentHistory(
         []
       );
-    } catch (error) {
-      console.error(
-        "Receive customer payment:",
-        error
-      );
-
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Unable to receive customer payment."
-      );
+    } catch {
+      // Silent fail: no browser popup or console overlay.
     } finally {
       setPaymentSaving(
         false
@@ -1209,40 +1145,47 @@ export default function CustomersPage() {
   ========================================================= */
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-6 lg:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="min-h-screen bg-slate-50 p-3 sm:p-4 md:p-6 lg:p-8">
+      <div className="mx-auto max-w-7xl space-y-4 sm:space-y-6">
 
         {/* HEADER */}
 
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Customers
-            </h1>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Manage customers, credit,
-              receivables and payment history.
-            </p>
-          </div>
-
-          <div className="flex gap-2">
+          <div className="flex min-w-0 items-start gap-3">
             <button
               type="button"
-              onClick={() =>
-                void loadCustomers()
-              }
-              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              onClick={() => router.push("/dashboard")}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+              aria-label="Back to Dashboard"
+              title="Back to Dashboard"
+            >
+              <ArrowLeft size={19} />
+            </button>
+
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                Customers
+              </h1>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Manage customers, credit, receivables and payment history.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+            <button
+              type="button"
+              onClick={() => void loadCustomers()}
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:w-auto"
             >
               Refresh
             </button>
 
             <button
               type="button"
-              onClick={
-                openAddCustomer
-              }
-              className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+              onClick={openAddCustomer}
+              className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 sm:w-auto sm:px-5"
             >
               + Add Customer
             </button>
@@ -1257,7 +1200,7 @@ export default function CustomersPage() {
 
         {/* STATS */}
 
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
           <StatCard
             title="Total Customers"
             value={
@@ -1374,168 +1317,117 @@ export default function CustomersPage() {
           </div>
         </div>
 
-        {/* TABLE */}
+        {/* CUSTOMERS LIST */}
 
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1250px]">
-              <thead className="border-b border-slate-200 bg-slate-50">
-                <tr>
-                  <TableHead>
-                    Customer
-                  </TableHead>
+          {loading ? (
+            <div className="px-4 py-12 text-center text-sm text-slate-500 sm:px-6">
+              Loading customers...
+            </div>
+          ) : filteredCustomers.length === 0 ? (
+            <div className="px-4 py-12 text-center text-sm text-slate-500 sm:px-6">
+              No customers found.
+            </div>
+          ) : (
+            <>
+              {/* Mobile / Tablet cards */}
+              <div className="divide-y divide-slate-100 lg:hidden">
+                {filteredCustomers.map(
+                  (customer) => {
+                    const balance =
+                      getBalance(
+                        customer
+                      );
 
-                  <TableHead>
-                    Contact
-                  </TableHead>
-
-                  <TableHead>
-                    Type
-                  </TableHead>
-
-                  <TableHead>
-                    Sales
-                  </TableHead>
-
-                  <TableHead>
-                    Paid
-                  </TableHead>
-
-                  <TableHead>
-                    Balance
-                  </TableHead>
-
-                  <TableHead>
-                    Payment
-                  </TableHead>
-
-                  <TableHead>
-                    Status
-                  </TableHead>
-
-                  <TableHead>
-                    Actions
-                  </TableHead>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-slate-100">
-                {loading ? (
-                  <tr>
-                    <td
-                      colSpan={9}
-                      className="px-6 py-12 text-center text-sm text-slate-500"
-                    >
-                      Loading customers...
-                    </td>
-                  </tr>
-                ) : filteredCustomers.length ===
-                  0 ? (
-                  <tr>
-                    <td
-                      colSpan={9}
-                      className="px-6 py-12 text-center text-sm text-slate-500"
-                    >
-                      No customers found.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredCustomers.map(
-                    (customer) => {
-                      const balance =
-                        getBalance(
-                          customer
-                        );
-
-                      return (
-                        <tr
-                          key={
-                            customer.id
-                          }
-                          className="transition hover:bg-slate-50"
-                        >
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 font-bold text-slate-700">
-                                {customer.name
-                                  .charAt(0)
-                                  .toUpperCase()}
-                              </div>
-
-                              <div>
-                                <p className="font-semibold text-slate-900">
-                                  {
-                                    customer.name
-                                  }
-                                </p>
-
-                                <p className="mt-1 max-w-[180px] truncate text-xs text-slate-500">
-                                  {customer.address ||
-                                    "No address"}
-                                </p>
-
-                                {customer.invoiceCount >
-                                  0 && (
-                                  <p className="mt-1 text-xs text-blue-600">
-                                    {
-                                      customer.invoiceCount
-                                    }{" "}
-                                    invoice(s)
-                                  </p>
-                                )}
-                              </div>
+                    return (
+                      <div
+                        key={customer.id}
+                        className="p-4 sm:p-5"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 font-bold text-slate-700">
+                              {customer.name
+                                .charAt(0)
+                                .toUpperCase()}
                             </div>
-                          </td>
 
-                          <td className="px-5 py-4">
-                            <p className="text-sm font-medium text-slate-700">
-                              {
-                                customer.phone
-                              }
+                            <div className="min-w-0">
+                              <p className="truncate font-semibold text-slate-900">
+                                {customer.name}
+                              </p>
+
+                              <p className="mt-1 truncate text-xs text-slate-500">
+                                {customer.phone || "No phone"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <span
+                            className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
+                              customer.status ===
+                              "Active"
+                                ? "bg-green-50 text-green-700"
+                                : "bg-red-50 text-red-600"
+                            }`}
+                          >
+                            {customer.status}
+                          </span>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-2 gap-3">
+                          <div className="rounded-xl bg-slate-50 p-3">
+                            <p className="text-xs text-slate-400">
+                              Type
                             </p>
 
-                            {customer.whatsapp && (
-                              <p className="mt-1 text-xs text-green-600">
-                                WhatsApp:{" "}
-                                {
-                                  customer.whatsapp
-                                }
-                              </p>
-                            )}
-                          </td>
+                            <p className="mt-1 text-sm font-semibold text-slate-700">
+                              {customer.type}
+                            </p>
+                          </div>
 
-                          <td className="px-5 py-4">
-                            <span
-                              className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                                customer.type ===
-                                "Wholesale"
-                                  ? "bg-blue-50 text-blue-700"
-                                  : customer.type ===
-                                      "Retail"
-                                    ? "bg-purple-50 text-purple-700"
-                                    : "bg-slate-100 text-slate-700"
-                              }`}
-                            >
-                              {
-                                customer.type
-                              }
+                          <div className="rounded-xl bg-slate-50 p-3">
+                            <p className="text-xs text-slate-400">
+                              Invoices
+                            </p>
+
+                            <p className="mt-1 text-sm font-semibold text-slate-700">
+                              {customer.invoiceCount}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl bg-slate-50 p-3">
+                            <p className="text-xs text-slate-400">
+                              Sales
+                            </p>
+
+                            <p className="mt-1 text-sm font-bold text-slate-900">
+                              {formatCurrency(
+                                customer.totalSales
+                              )}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl bg-slate-50 p-3">
+                            <p className="text-xs text-slate-400">
+                              Paid
+                            </p>
+
+                            <p className="mt-1 text-sm font-bold text-emerald-600">
+                              {formatCurrency(
+                                customer.totalPaid
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 rounded-xl bg-slate-50 p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-xs text-slate-400">
+                              Balance
                             </span>
-                          </td>
 
-                          <td className="px-5 py-4 text-sm font-medium text-slate-700">
-                            {formatCurrency(
-                              customer.totalSales
-                            )}
-                          </td>
-
-                          <td className="px-5 py-4 text-sm font-medium text-green-600">
-                            {formatCurrency(
-                              customer.totalPaid
-                            )}
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <p
+                            <span
                               className={`text-sm font-bold ${
                                 balance > 0
                                   ? "text-red-600"
@@ -1549,95 +1441,330 @@ export default function CustomersPage() {
                                   balance
                                 )
                               )}
-                            </p>
-
-                            <p className="mt-1 text-xs text-slate-400">
-                              {balance > 0
-                                ? "Receivable"
-                                : balance < 0
-                                  ? "Advance"
-                                  : "Clear"}
-                            </p>
-                          </td>
-
-                          <td className="px-5 py-4">
-                            {customer.receivable >
-                            0 ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void openReceivePayment(
-                                    customer
-                                  )
-                                }
-                                className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700"
-                              >
-                                Receive Payment
-                              </button>
-                            ) : (
-                              <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                                Fully Paid
-                              </span>
-                            )}
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <span
-                              className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                                customer.status ===
-                                "Active"
-                                  ? "bg-green-50 text-green-700"
-                                  : "bg-red-50 text-red-600"
-                              }`}
-                            >
-                              {
-                                customer.status
-                              }
                             </span>
-                          </td>
+                          </div>
 
-                          <td className="px-5 py-4">
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  editCustomer(
-                                    customer
-                                  )
-                                }
-                                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                              >
-                                Edit
-                              </button>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {balance > 0
+                              ? "Receivable"
+                              : balance < 0
+                                ? "Advance"
+                                : "Clear"}
+                          </p>
+                        </div>
 
-                              <button
-                                type="button"
-                                disabled={
-                                  deletingId ===
-                                  customer.id
-                                }
-                                onClick={() =>
-                                  void deleteCustomer(
-                                    customer.id
-                                  )
-                                }
-                                className="rounded-lg border border-red-100 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
-                              >
-                                {deletingId ===
-                                customer.id
-                                  ? "Deleting..."
-                                  : "Delete"}
-                              </button>
+                        {customer.address && (
+                          <div className="mt-3 rounded-xl bg-slate-50 p-3">
+                            <p className="text-xs text-slate-400">
+                              Address
+                            </p>
+
+                            <p className="mt-1 text-sm text-slate-600">
+                              {customer.address}
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          {customer.receivable >
+                          0 ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void openReceivePayment(
+                                  customer
+                                )
+                              }
+                              className="col-span-2 rounded-lg bg-emerald-600 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-emerald-700 sm:col-span-1"
+                            >
+                              Receive Payment
+                            </button>
+                          ) : (
+                            <div className="col-span-2 flex items-center justify-center rounded-lg bg-emerald-50 px-3 py-2.5 text-xs font-semibold text-emerald-700 sm:col-span-1">
+                              Fully Paid
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    }
-                  )
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              editCustomer(
+                                customer
+                              )
+                            }
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={
+                              deletingId ===
+                              customer.id
+                            }
+                            onClick={() =>
+                              void deleteCustomer(
+                                customer.id
+                              )
+                            }
+                            className="rounded-lg border border-red-100 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                          >
+                            {deletingId ===
+                            customer.id
+                              ? "Deleting..."
+                              : "Delete"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
                 )}
-              </tbody>
-            </table>
-          </div>
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden overflow-x-auto lg:block">
+                <table className="w-full min-w-312.5">
+                  <thead className="border-b border-slate-200 bg-slate-50">
+                    <tr>
+                      <TableHead>
+                        Customer
+                      </TableHead>
+
+                      <TableHead>
+                        Contact
+                      </TableHead>
+
+                      <TableHead>
+                        Type
+                      </TableHead>
+
+                      <TableHead>
+                        Sales
+                      </TableHead>
+
+                      <TableHead>
+                        Paid
+                      </TableHead>
+
+                      <TableHead>
+                        Balance
+                      </TableHead>
+
+                      <TableHead>
+                        Payment
+                      </TableHead>
+
+                      <TableHead>
+                        Status
+                      </TableHead>
+
+                      <TableHead>
+                        Actions
+                      </TableHead>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredCustomers.map(
+                      (customer) => {
+                        const balance =
+                          getBalance(
+                            customer
+                          );
+
+                        return (
+                          <tr
+                            key={
+                              customer.id
+                            }
+                            className="transition hover:bg-slate-50"
+                          >
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 font-bold text-slate-700">
+                                  {customer.name
+                                    .charAt(0)
+                                    .toUpperCase()}
+                                </div>
+
+                                <div>
+                                  <p className="font-semibold text-slate-900">
+                                    {
+                                      customer.name
+                                    }
+                                  </p>
+
+                                  <p className="mt-1 max-w-45 truncate text-xs text-slate-500">
+                                    {customer.address ||
+                                      "No address"}
+                                  </p>
+
+                                  {customer.invoiceCount >
+                                    0 && (
+                                    <p className="mt-1 text-xs text-blue-600">
+                                      {
+                                        customer.invoiceCount
+                                      }{" "}
+                                      invoice(s)
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <p className="text-sm font-medium text-slate-700">
+                                {
+                                  customer.phone
+                                }
+                              </p>
+
+                              {customer.whatsapp && (
+                                <p className="mt-1 text-xs text-green-600">
+                                  WhatsApp:{" "}
+                                  {
+                                    customer.whatsapp
+                                  }
+                                </p>
+                              )}
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <span
+                                className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                                  customer.type ===
+                                  "Wholesale"
+                                    ? "bg-blue-50 text-blue-700"
+                                    : customer.type ===
+                                        "Retail"
+                                      ? "bg-purple-50 text-purple-700"
+                                      : "bg-slate-100 text-slate-700"
+                                }`}
+                              >
+                                {
+                                  customer.type
+                                }
+                              </span>
+                            </td>
+
+                            <td className="px-5 py-4 text-sm font-medium text-slate-700">
+                              {formatCurrency(
+                                customer.totalSales
+                              )}
+                            </td>
+
+                            <td className="px-5 py-4 text-sm font-medium text-green-600">
+                              {formatCurrency(
+                                customer.totalPaid
+                              )}
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <p
+                                className={`text-sm font-bold ${
+                                  balance > 0
+                                    ? "text-red-600"
+                                    : balance < 0
+                                      ? "text-green-600"
+                                      : "text-slate-600"
+                                }`}
+                              >
+                                {formatCurrency(
+                                  Math.abs(
+                                    balance
+                                  )
+                                )}
+                              </p>
+
+                              <p className="mt-1 text-xs text-slate-400">
+                                {balance > 0
+                                  ? "Receivable"
+                                  : balance < 0
+                                    ? "Advance"
+                                    : "Clear"}
+                              </p>
+                            </td>
+
+                            <td className="px-5 py-4">
+                              {customer.receivable >
+                              0 ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void openReceivePayment(
+                                      customer
+                                    )
+                                  }
+                                  className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700"
+                                >
+                                  Receive Payment
+                                </button>
+                              ) : (
+                                <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                  Fully Paid
+                                </span>
+                              )}
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <span
+                                className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                                  customer.status ===
+                                  "Active"
+                                    ? "bg-green-50 text-green-700"
+                                    : "bg-red-50 text-red-600"
+                                }`}
+                              >
+                                {
+                                  customer.status
+                                }
+                              </span>
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    editCustomer(
+                                      customer
+                                    )
+                                  }
+                                  className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                                >
+                                  Edit
+                                </button>
+
+                                <button
+                                  type="button"
+                                  disabled={
+                                    deletingId ===
+                                    customer.id
+                                  }
+                                  onClick={() =>
+                                    void deleteCustomer(
+                                      customer.id
+                                    )
+                                  }
+                                  className="rounded-lg border border-red-100 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                >
+                                  {deletingId ===
+                                  customer.id
+                                    ? "Deleting..."
+                                    : "Delete"}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -1646,9 +1773,9 @@ export default function CustomersPage() {
       ===================================================== */}
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-5">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-3 sm:flex sm:items-center sm:justify-center sm:p-4">
+          <div className="mx-auto my-4 max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl sm:my-0 sm:rounded-3xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">
                   {editingId !==
@@ -1678,7 +1805,7 @@ export default function CustomersPage() {
               onSubmit={
                 handleSubmit
               }
-              className="space-y-6 p-6"
+              className="space-y-5 p-4 sm:space-y-6 sm:p-6"
             >
               <section className="rounded-2xl border border-slate-200 p-5">
                 <h3 className="text-base font-bold text-slate-900">
@@ -1892,12 +2019,12 @@ export default function CustomersPage() {
       ===================================================== */}
 
       {paymentCustomer && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="max-h-[94vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+        <div className="fixed inset-0 z-70 overflow-y-auto bg-slate-950/50 p-3 sm:flex sm:items-center sm:justify-center sm:p-4">
+          <div className="mx-auto my-4 max-h-[94vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl sm:my-0 sm:rounded-3xl">
 
             {/* PAYMENT HEADER */}
 
-            <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-6 py-5">
+            <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900">
@@ -1967,7 +2094,7 @@ export default function CustomersPage() {
               onSubmit={
                 handleReceivePayment
               }
-              className="space-y-5 p-6"
+              className="space-y-5 p-4 sm:p-6"
             >
               {/* AMOUNT */}
 
@@ -2111,7 +2238,7 @@ export default function CustomersPage() {
                   </div>
                 ) : (
                   <div className="max-h-60 overflow-y-auto">
-                    <table className="w-full min-w-[520px]">
+                    <table className="w-full min-w-130">
                       <thead className="sticky top-0 bg-white">
                         <tr className="border-b border-slate-100">
                           <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-400">
