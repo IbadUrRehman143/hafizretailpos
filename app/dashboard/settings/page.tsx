@@ -6,7 +6,7 @@ import {
   useState,
 } from "react";
 
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 type Settings = {
@@ -140,6 +140,33 @@ export default function SettingsPage() {
     useState(false);
 
   const [error, setError] =
+    useState("");
+
+  const [currentPassword, setCurrentPassword] =
+    useState("");
+
+  const [newPassword, setNewPassword] =
+    useState("");
+
+  const [confirmPassword, setConfirmPassword] =
+    useState("");
+
+  const [showCurrentPassword, setShowCurrentPassword] =
+    useState(false);
+
+  const [showNewPassword, setShowNewPassword] =
+    useState(false);
+
+  const [showConfirmPassword, setShowConfirmPassword] =
+    useState(false);
+
+  const [passwordLoading, setPasswordLoading] =
+    useState(false);
+
+  const [passwordError, setPasswordError] =
+    useState("");
+
+  const [passwordSuccess, setPasswordSuccess] =
     useState("");
 
   const loadSettings =
@@ -372,6 +399,78 @@ export default function SettingsPage() {
     }
   }
 
+
+  async function changePassword() {
+    setPasswordError("");
+    setPasswordSuccess("");
+
+    if (
+      !currentPassword ||
+      !newPassword ||
+      !confirmPassword
+    ) {
+      setPasswordError(
+        "Please fill all password fields."
+      );
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError(
+        "New passwords do not match."
+      );
+      return;
+    }
+
+    try {
+      setPasswordLoading(true);
+
+      const response = await fetch(
+        "/api/auth/change-password",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            currentPassword,
+            newPassword,
+          }),
+        }
+      );
+
+      const data = await readResponse(response);
+
+      if (
+        !isRecord(data) ||
+        data.success !== true
+      ) {
+        throw new Error(
+          "Password update failed."
+        );
+      }
+
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowCurrentPassword(false);
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
+      setPasswordSuccess(
+        "Password changed successfully."
+      );
+    } catch (error) {
+      setPasswordError(
+        error instanceof Error
+          ? error.message
+          : "Password update failed."
+      );
+    } finally {
+      setPasswordLoading(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -680,6 +779,85 @@ export default function SettingsPage() {
           </div>
         </SettingsSection>
 
+        <SettingsSection
+          icon="🔐"
+          title="Security & Password"
+          description="Manage your account password and security"
+        >
+          <div className="max-w-2xl space-y-5">
+            <PasswordField
+              label="Current Password"
+              value={currentPassword}
+              placeholder="Enter current password"
+              showPassword={showCurrentPassword}
+              onToggleShow={() =>
+                setShowCurrentPassword(
+                  (current) => !current
+                )
+              }
+              onChange={setCurrentPassword}
+              autoComplete="current-password"
+            />
+
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <PasswordField
+                label="New Password"
+                value={newPassword}
+                placeholder="Enter new password"
+                showPassword={showNewPassword}
+                onToggleShow={() =>
+                  setShowNewPassword(
+                    (current) => !current
+                  )
+                }
+                onChange={setNewPassword}
+                autoComplete="new-password"
+              />
+
+              <PasswordField
+                label="Confirm New Password"
+                value={confirmPassword}
+                placeholder="Confirm new password"
+                showPassword={showConfirmPassword}
+                onToggleShow={() =>
+                  setShowConfirmPassword(
+                    (current) => !current
+                  )
+                }
+                onChange={setConfirmPassword}
+                autoComplete="new-password"
+              />
+            </div>
+
+            <p className="text-xs text-slate-500">
+              Password must be at least 8 characters and contain at least one letter and one number.
+            </p>
+
+            {passwordError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
+                {passwordError}
+              </div>
+            )}
+
+            {passwordSuccess && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+                ✓ {passwordSuccess}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={changePassword}
+              disabled={passwordLoading}
+              className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {passwordLoading
+                ? "Changing Password..."
+                : "Change Password"}
+            </button>
+          </div>
+        </SettingsSection>
+
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <SectionHeader
             icon="⚙️"
@@ -801,6 +979,75 @@ function InputField({
         }
         className="w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
       />
+    </div>
+  );
+}
+
+function PasswordField({
+  label,
+  value,
+  placeholder,
+  showPassword,
+  onToggleShow,
+  onChange,
+  autoComplete,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  showPassword: boolean;
+  onToggleShow: () => void;
+  onChange: (value: string) => void;
+  autoComplete:
+    | "current-password"
+    | "new-password";
+}) {
+  return (
+    <div>
+      <label className="mb-2 block text-sm font-bold text-slate-700">
+        {label}
+      </label>
+
+      <div className="relative">
+        <input
+          type={
+            showPassword
+              ? "text"
+              : "password"
+          }
+          value={value}
+          onChange={(event) =>
+            onChange(
+              event.target.value
+            )
+          }
+          autoComplete={autoComplete}
+          placeholder={placeholder}
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-12 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+        />
+
+        <button
+          type="button"
+          onClick={onToggleShow}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700"
+          aria-label={
+            showPassword
+              ? "Hide password"
+              : "Show password"
+          }
+          title={
+            showPassword
+              ? "Hide password"
+              : "Show password"
+          }
+        >
+          {showPassword ? (
+            <EyeOff size={18} />
+          ) : (
+            <Eye size={18} />
+          )}
+        </button>
+      </div>
     </div>
   );
 }

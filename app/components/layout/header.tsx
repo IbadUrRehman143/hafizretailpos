@@ -73,6 +73,11 @@ export default function Header({
     setProfileOpen,
   ] = useState(false);
 
+  const [
+    logoutLoading,
+    setLogoutLoading,
+  ] = useState(false);
+
   // ====================================================
   // SEARCH
   // ====================================================
@@ -145,9 +150,7 @@ export default function Header({
   const loadNotifications =
     async () => {
       try {
-        setNotificationLoading(
-          true
-        );
+        setNotificationLoading(true);
 
         const response =
           await fetch(
@@ -183,9 +186,7 @@ export default function Header({
 
         setNotifications([]);
       } finally {
-        setNotificationLoading(
-          false
-        );
+        setNotificationLoading(false);
       }
     };
 
@@ -221,9 +222,7 @@ export default function Header({
       window.setTimeout(
         async () => {
           try {
-            setSearchLoading(
-              true
-            );
+            setSearchLoading(true);
 
             const response =
               await fetch(
@@ -253,9 +252,7 @@ export default function Header({
                   : []
               );
             } else {
-              setSearchResults(
-                []
-              );
+              setSearchResults([]);
             }
           } catch (error) {
             if (
@@ -272,23 +269,16 @@ export default function Header({
               error
             );
 
-            setSearchResults(
-              []
-            );
+            setSearchResults([]);
           } finally {
-            setSearchLoading(
-              false
-            );
+            setSearchLoading(false);
           }
         },
         350
       );
 
     return () => {
-      window.clearTimeout(
-        timer
-      );
-
+      window.clearTimeout(timer);
       controller.abort();
     };
   }, [search]);
@@ -328,9 +318,7 @@ export default function Header({
           target
         )
       ) {
-        setNotificationOpen(
-          false
-        );
+        setNotificationOpen(false);
       }
     };
 
@@ -616,12 +604,47 @@ export default function Header({
   // ====================================================
 
   const handleLogout =
-    () => {
+    async () => {
+      if (logoutLoading) {
+        return;
+      }
+
+      setLogoutLoading(true);
       setProfileOpen(false);
 
-      console.log(
-        "Logout requires authentication setup."
-      );
+      try {
+        const response =
+          await fetch(
+            "/api/auth/logout",
+            {
+              method: "POST",
+              credentials:
+                "same-origin",
+            }
+          );
+
+        if (!response.ok) {
+          console.error(
+            "Logout failed."
+          );
+
+          setLogoutLoading(false);
+          return;
+        }
+
+        router.replace(
+          "/login"
+        );
+
+        router.refresh();
+      } catch (error) {
+        console.error(
+          "Logout error:",
+          error
+        );
+
+        setLogoutLoading(false);
+      }
     };
 
   // ====================================================
@@ -632,9 +655,7 @@ export default function Header({
     <header className="sticky top-0 z-30 h-14 w-full border-b border-slate-200 bg-white sm:h-16">
       <div className="flex h-full w-full min-w-0 items-center px-3 sm:px-5 lg:px-6">
 
-        {/* =========================================== */}
         {/* LEFT */}
-        {/* =========================================== */}
 
         <div className="flex min-w-0 flex-1 items-center">
           <button
@@ -727,8 +748,7 @@ export default function Header({
                 <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-[min(430px,70vh)] overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
                   {searchLoading && (
                     <div className="px-4 py-8 text-center text-sm text-slate-500">
-                      Searching
-                      database...
+                      Searching database...
                     </div>
                   )}
 
@@ -742,15 +762,12 @@ export default function Header({
                         />
 
                         <p className="text-sm font-medium text-slate-700">
-                          No results
-                          found
+                          No results found
                         </p>
 
                         <p className="mt-1 text-xs text-slate-400">
-                          Try another
-                          product,
-                          customer,
-                          invoice or
+                          Try another product,
+                          customer, invoice or
                           supplier.
                         </p>
                       </div>
@@ -762,8 +779,7 @@ export default function Header({
                       <>
                         <div className="border-b border-slate-100 px-4 py-2.5">
                           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Search
-                            Results
+                            Search Results
                           </p>
                         </div>
 
@@ -824,9 +840,7 @@ export default function Header({
           </div>
         </div>
 
-        {/* =========================================== */}
         {/* RIGHT */}
-        {/* =========================================== */}
 
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
 
@@ -890,8 +904,7 @@ export default function Header({
                 <div className="max-h-[55vh] overflow-y-auto sm:max-h-[390px]">
                   {notificationLoading ? (
                     <div className="px-4 py-10 text-center text-sm text-slate-500">
-                      Loading
-                      notifications...
+                      Loading notifications...
                     </div>
                   ) : notifications.length ===
                     0 ? (
@@ -902,13 +915,11 @@ export default function Header({
                       />
 
                       <p className="text-sm font-medium text-slate-700">
-                        No
-                        notifications
+                        No notifications
                       </p>
 
                       <p className="mt-1 text-xs text-slate-400">
-                        You are all
-                        caught up.
+                        You are all caught up.
                       </p>
                     </div>
                   ) : (
@@ -980,8 +991,7 @@ export default function Header({
                   }}
                   className="w-full border-t border-slate-100 px-4 py-3 text-center text-sm font-medium text-blue-600 transition hover:bg-slate-50"
                 >
-                  View all
-                  notifications
+                  View all notifications
                 </button>
               </div>
             )}
@@ -1093,14 +1103,19 @@ export default function Header({
                   onClick={
                     handleLogout
                   }
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-red-600 transition hover:bg-red-50"
+                  disabled={
+                    logoutLoading
+                  }
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <LogOut
                     size={17}
                   />
 
                   <span>
-                    Logout
+                    {logoutLoading
+                      ? "Logging out..."
+                      : "Logout"}
                   </span>
                 </button>
               </div>
