@@ -1,16 +1,20 @@
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET;
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
 
-if (!JWT_SECRET) {
-  // Fail fast at boot, not silently at runtime with a weak
-  // fallback. Never log the secret's value here or anywhere else.
-  throw new Error(
-    "JWT_SECRET environment variable is required and must not be empty. " +
-      "Set it in your environment (see .env.example)."
-  );
+  if (!secret) {
+    throw new Error(
+      "JWT_SECRET environment variable is required and must not be empty. " +
+        "Set it in your environment."
+    );
+  }
+
+  return secret;
 }
+
+const JWT_SECRET = getJwtSecret();
 
 export const SESSION_COOKIE = "hafiz_pos_session";
 
@@ -31,7 +35,7 @@ export function verifySessionToken(
     return jwt.verify(
       token,
       JWT_SECRET
-    ) as SessionPayload;
+    ) as unknown as SessionPayload;
   } catch {
     return null;
   }
