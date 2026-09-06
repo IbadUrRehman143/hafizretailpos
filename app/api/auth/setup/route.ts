@@ -6,6 +6,7 @@ import {
   validatePassword,
 } from "@/src/lib/auth/password";
 import { setSessionCookie } from "@/src/lib/auth/session";
+import { SUPER_ADMIN_ROLE_NAME } from "@/src/lib/auth/constants";
 
 export async function GET() {
   const users =
@@ -95,13 +96,13 @@ export async function POST(
 
     let role = roles.find(
       (item) =>
-        item.name === "SUPER_ADMIN"
+        item.name === SUPER_ADMIN_ROLE_NAME
     );
 
     if (!role) {
       role =
         await db.orm.public.Role.create({
-          name: "SUPER_ADMIN",
+          name: SUPER_ADMIN_ROLE_NAME,
           description:
             "Super Admin Access",
         });

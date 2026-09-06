@@ -1,9 +1,16 @@
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  "your-secret-key-change-this-in-env";
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  // Fail fast at boot, not silently at runtime with a weak
+  // fallback. Never log the secret's value here or anywhere else.
+  throw new Error(
+    "JWT_SECRET environment variable is required and must not be empty. " +
+      "Set it in your environment (see .env.example)."
+  );
+}
 
 export const SESSION_COOKIE = "hafiz_pos_session";
 

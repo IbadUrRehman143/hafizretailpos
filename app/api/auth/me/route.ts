@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { db } from "@/src/prisma/db";
 import { getSession } from "@/src/lib/auth/session";
+import { isSuperAdminRole } from "@/src/lib/auth/constants";
 
 export async function GET() {
   const session = await getSession();
@@ -41,7 +42,7 @@ export async function GET() {
   );
 
   const permissions =
-    role?.name === "SUPER_ADMIN"
+    isSuperAdminRole(role?.name)
       ? ["*"]
       : rolePermissions
           .filter(

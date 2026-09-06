@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/src/prisma/db";
 import { verifyPassword } from "@/src/lib/auth/password";
 import { setSessionCookie } from "@/src/lib/auth/session";
+import { isSuperAdminRole } from "@/src/lib/auth/constants";
 
 export async function POST(request: NextRequest) {
   try {
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
     );
 
     const permissions =
-      userRole?.name === "Super Admin"
+      isSuperAdminRole(userRole?.name)
         ? ["*"]
         : rolePermissions
             .filter(
