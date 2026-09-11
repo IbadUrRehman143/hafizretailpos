@@ -37,13 +37,22 @@ type ChatMessage = {
   kind?: "normal" | "verified" | "error";
 };
 
+type NaturalLanguageApiResponse = {
+  success: boolean;
+  answer?: string;
+  responseId?: string | null;
+  usedTools?: AiToolName[];
+  verified?: boolean;
+  error?: string;
+};
+
 const STARTER_MESSAGES: ChatMessage[] = [
   {
     id: 1,
     role: "assistant",
     kind: "normal",
     text:
-      "Welcome to Hafiz AI Copilot. Phase 4 uses permission-aware verified business tools. Business numbers come from your analytics layer and PostgreSQL — not from AI guessing.",
+      "Welcome to Hafiz AI Copilot. You can now ask business questions naturally in English, Roman Urdu or Urdu. Business numbers still come only from permission-aware verified tools.",
   },
 ];
 
@@ -237,6 +246,8 @@ export default function FloatingAiAgent() {
   const [maximized, setMaximized] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(STARTER_MESSAGES);
   const [loadingTool, setLoadingTool] = useState<AiToolName | null>(null);
+  const [loadingChat, setLoadingChat] = useState(false);
+  const [previousResponseId, setPreviousResponseId] = useState<string | null>(null);
   const [showAllTools, setShowAllTools] = useState(false);
   const [selectedTool, setSelectedTool] = useState<AiToolName>("getTodaySales");
   const [toolArgs, setToolArgs] = useState<AiToolArgs>({});
@@ -331,19 +342,65 @@ export default function FloatingAiAgent() {
     await executeTool(selectedTool, toolArgs);
   }
 
-  function handleFreeText(event: FormEvent<HTMLFormElement>) {
+  async function handleFreeText(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const value = input.trim();
-    if (!value) return;
+    if (!value || loadingChat || loadingTool) return;
 
     setInput("");
     addMessage("user", value);
-    addMessage(
-      "assistant",
-      "Natural-language LLM reasoning is intentionally not enabled in this final Phase 4 foundation. Use the verified tools below. Phase 4 keeps business numbers deterministic and permission-aware first.",
-      "normal"
-    );
+    setLoadingChat(true);
+
+    try {
+      const response = await fetch("/api/ai/chat", {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          message: value,
+          previousResponseId,
+        }),
+      });
+
+      const payload = (await response.json()) as NaturalLanguageApiResponse;
+
+      if (!response.ok || !payload.success) {
+        throw new Error(
+          payload.error ||
+            (response.status === 401
+              ? "Your session has expired. Please sign in again."
+              : "Unable to process the AI request.")
+        );
+      }
+
+      setPreviousResponseId(payload.responseId ?? null);
+
+      const toolNote =
+        payload.usedTools && payload.usedTools.length > 0
+          ? `\n\nVerified via: ${payload.usedTools.join(", ")}`
+          : "";
+
+      addMessage(
+        "assistant",
+        `${payload.answer || "No response received."}${toolNote}`,
+        payload.verified ? "verified" : "normal"
+      );
+    } catch (error) {
+      addMessage(
+        "assistant",
+        error instanceof Error
+          ? error.message
+          : "Unable to process the AI request.",
+        "error"
+      );
+    } finally {
+      setLoadingChat(false);
+    }
   }
 
   return (
@@ -410,19 +467,19 @@ export default function FloatingAiAgent() {
                       Hafiz AI Copilot
                     </h2>
                     <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-600 ring-1 ring-indigo-100">
-                      Phase 4
+                      Phase 5
                     </span>
                   </div>
 
                   <p className="mt-0.5 flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                    {loadingTool ? (
+                    {loadingTool || loadingChat ? (
                       <Loader2 size={12} className="animate-spin text-blue-600" />
                     ) : (
                       <ShieldCheck size={12} className="text-emerald-600" />
                     )}
-                    {loadingTool
-                      ? "Reading verified business data..."
-                      : "Permission-aware · Verified data"}
+                    {loadingTool || loadingChat
+                      ? "Thinking with verified business tools..."
+                      : "Natural language · Verified tools"}
                   </p>
                 </div>
 
@@ -647,6 +704,15 @@ export default function FloatingAiAgent() {
                     </div>
                   )}
 
+                  {loadingChat && (
+                    <div className="flex justify-start">
+                      <div className="flex items-center gap-2 rounded-2xl rounded-bl-md border border-indigo-200 bg-white px-3.5 py-2.5 text-xs text-slate-500 shadow-sm">
+                        <Loader2 size={14} className="animate-spin text-indigo-600" />
+                        Understanding your question and checking verified tools...
+                      </div>
+                    </div>
+                  )}
+
                   <div ref={bottomRef} />
                 </div>
               </div>
@@ -664,12 +730,12 @@ export default function FloatingAiAgent() {
                     }
                   }}
                   rows={1}
-                  placeholder="Natural-language AI comes after this secure foundation..."
+                  placeholder="Ask: aaj ki sales kitni hain? product 1 ka stock? top 5 products?"
                   className="max-h-28 min-h-11 flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                 />
                 <button
                   type="submit"
-                  disabled={!input.trim()}
+                  disabled={!input.trim() || loadingChat || Boolean(loadingTool)}
                   className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
                   aria-label="Send"
                 >
@@ -679,11 +745,11 @@ export default function FloatingAiAgent() {
 
               <div className="mt-2 flex items-center justify-between gap-2">
                 <p className="text-[10px] text-slate-400 sm:text-[11px]">
-                  DB → deterministic tool → verified result → AI explanation later
+                  Natural language → permission check → verified tool → AI answer
                 </p>
                 <button
                   type="button"
-                  onClick={() => setMessages(STARTER_MESSAGES)}
+                  onClick={() => { setMessages(STARTER_MESSAGES); setPreviousResponseId(null); }}
                   className="shrink-0 text-[10px] font-semibold text-slate-500 hover:text-slate-800 sm:text-[11px]"
                 >
                   Clear chat

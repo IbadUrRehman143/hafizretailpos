@@ -272,9 +272,11 @@ function OverallCard({
             {title}
           </p>
 
-          <h3 className="mt-1.5 break-words text-xl font-bold leading-tight text-slate-900 sm:mt-2 sm:text-2xl">
-            {value}
-          </h3>
+          {value ? (
+            <h3 className="mt-1.5 break-words text-xl font-bold leading-tight text-slate-900 sm:mt-2 sm:text-2xl">
+              {value}
+            </h3>
+          ) : null}
 
           <p className="mt-1.5 text-[11px] leading-5 text-slate-500 sm:mt-2 sm:text-xs">
             {description}
@@ -907,6 +909,28 @@ export default async function DashboardPage() {
             href="/dashboard/suppliers"
             icon={<Truck size={22} />}
             iconClassName="bg-violet-100 text-violet-600"
+          />
+
+          {/* SMART INVENTORY INTELLIGENCE — PHASE 6 */}
+
+          <OverallCard
+            title="Inventory AI Intelligence"
+            value=""
+            description="Stock risk, velocity, reorder & purchase recommendations"
+            href="/dashboard/inventory-intelligence"
+            icon={<Boxes size={22} />}
+            iconClassName="bg-indigo-100 text-indigo-600"
+          />
+
+          {/* BUSINESS INTELLIGENCE — PHASE 7 */}
+
+          <OverallCard
+            title="Business Intelligence"
+            value=""
+            description="Sales, customers, credit, expenses & profitability"
+            href="/dashboard/business-intelligence"
+            icon={<TrendingUp size={22} />}
+            iconClassName="bg-rose-100 text-rose-600"
           />
         </div>
 
