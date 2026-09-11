@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { db } from "@/src/prisma/db";
+import { requireApiPermission } from "@/src/lib/auth/apiGuard";
 
 /* =====================================================
    TYPES
@@ -165,6 +166,9 @@ function removeWeightFIFO(
 export async function POST(
   request: Request
 ) {
+  const auth = await requireApiPermission("inventory", "edit");
+  if (!auth.ok) return auth.response;
+
   try {
     /* =================================================
        BODY
@@ -633,6 +637,8 @@ export async function POST(
 
               referenceType:
                 "MANUAL_ADJUSTMENT",
+
+              branchId: auth.session.branchId,
 
               note:
                 historyNote,

@@ -1,0 +1,120 @@
+﻿import { NextResponse } from "next/server";
+import { requireApiPermission } from "@/src/lib/auth/apiGuard";
+import {
+  clearActionHistory,
+  decideAction,
+  deleteAction,
+  executeApprovedAction,
+  listActions,
+  type ActorScope,
+} from "@/src/lib/autonomous-intelligence";
+
+const actorFrom = (s: any): ActorScope => ({
+  id: s.id,
+  name: s.name,
+  role: s.role,
+  branchId: s.branchId,
+});
+
+export async function GET() {
+  const auth = await requireApiPermission("purchases", "view");
+  if (!auth.ok) return auth.response;
+
+  return NextResponse.json({
+    success: true,
+    verified: true,
+    data: await listActions(actorFrom(auth.session)),
+  });
+}
+
+export async function POST(request: Request) {
+  try {
+    const auth = await requireApiPermission("purchases", "edit");
+    if (!auth.ok) return auth.response;
+
+    const body = await request.json();
+    const action = String(body.action || "");
+    const id = Number(body.id || 0);
+
+    if (!id) {
+      throw new Error("Valid action ID is required.");
+    }
+
+    const actor = actorFrom(auth.session);
+
+    const data =
+      action === "APPROVE" || action === "REJECT"
+        ? await decideAction(id, action, actor)
+        : action === "EXECUTE"
+          ? await executeApprovedAction(id, actor)
+          : (() => {
+              throw new Error(
+                "Action must be APPROVE, REJECT, or EXECUTE."
+              );
+            })();
+
+    return NextResponse.json({
+      success: true,
+      verified: true,
+      data,
+    });
+  } catch (e) {
+    return NextResponse.json(
+      {
+        success: false,
+        message:
+          e instanceof Error
+            ? e.message
+            : "Unable to update approval.",
+      },
+      { status: 400 }
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const auth = await requireApiPermission("purchases", "delete");
+    if (!auth.ok) return auth.response;
+
+    const url = new URL(request.url);
+    const actor = actorFrom(auth.session);
+
+    if (url.searchParams.get("clear") === "history") {
+      const data = await clearActionHistory(actor);
+
+      return NextResponse.json({
+        success: true,
+        verified: true,
+        message: `${data.deleted} AI history record(s) cleared.`,
+        data,
+      });
+    }
+
+    const id = Number(url.searchParams.get("id") || 0);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      throw new Error("Valid AI action ID is required.");
+    }
+
+    const data = await deleteAction(id, actor);
+
+    return NextResponse.json({
+      success: true,
+      verified: true,
+      message: "AI action history entry deleted.",
+      data,
+    });
+  } catch (e) {
+    return NextResponse.json(
+      {
+        success: false,
+        message:
+          e instanceof Error
+            ? e.message
+            : "Unable to clean AI history.",
+      },
+      { status: 400 }
+    );
+  }
+}

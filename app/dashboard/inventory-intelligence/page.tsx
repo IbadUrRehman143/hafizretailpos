@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -89,7 +89,7 @@ export default function InventoryIntelligencePage() {
           href="/dashboard"
           className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 transition hover:text-slate-950"
         >
-          <span aria-hidden="true">←</span>
+          <span aria-hidden="true">â†</span>
           Back to Dashboard
         </Link>
 
@@ -97,7 +97,7 @@ export default function InventoryIntelligencePage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600">
-                Phase 6 · Verified Intelligence
+                Phase 6 Â· Verified Intelligence
               </p>
               <h1 className="mt-2 text-2xl font-black text-slate-950 sm:text-3xl">
                 Inventory AI Intelligence
@@ -181,7 +181,7 @@ export default function InventoryIntelligencePage() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-black text-slate-950">{item.productName}</p>
-                        <p className="text-xs text-slate-500">ID {item.productId} · {item.unit}</p>
+                        <p className="text-xs text-slate-500">ID {item.productId} Â· {item.unit}</p>
                       </div>
                       <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${riskClass[item.risk]}`}>
                         {item.risk.replaceAll("_", " ")}
@@ -215,7 +215,7 @@ export default function InventoryIntelligencePage() {
                         <td className="px-4 py-4">{number(item.sold7Days)}</td>
                         <td className="px-4 py-4">{number(item.sold30Days)}</td>
                         <td className="px-4 py-4">{number(item.weightedDailyVelocity)}</td>
-                        <td className="px-4 py-4">{item.daysRemaining === null ? "—" : item.daysRemaining}</td>
+                        <td className="px-4 py-4">{item.daysRemaining === null ? "â€”" : item.daysRemaining}</td>
                         <td className="px-4 py-4">
                           <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${riskClass[item.risk]}`}>
                             {item.risk.replaceAll("_", " ")}
@@ -244,3 +244,4 @@ function Info({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-import "server-only";
+﻿import "server-only";
 
 import { db } from "@/src/prisma/db";
 import type {
@@ -147,7 +147,12 @@ export async function getInventoryIntelligence(
         risk === "HIGH_RISK" ||
         (risk === "WATCH" && recommendedReorder > 0);
 
-      const finalReorder = reorderRequired ? recommendedReorder : 0;
+      const isWeightProduct = String(product.type ?? "").toLowerCase() === "weight";
+      const finalReorder = reorderRequired
+        ? isWeightProduct
+          ? recommendedReorder
+          : Math.ceil(recommendedReorder)
+        : 0;
       const purchasePrice = Math.max(0, n(product.purchasePrice));
 
       return {
@@ -255,3 +260,5 @@ export async function getPurchaseRecommendations(targetStockDays = DEFAULT_TARGE
       })),
   };
 }
+
+

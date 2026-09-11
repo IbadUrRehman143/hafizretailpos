@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { db } from "@/src/prisma/db";
+import { requireApiPermission } from "@/src/lib/auth/apiGuard";
+import { canAccessBranchRow } from "@/src/lib/auth/branchScope";
 
 /* =====================================================
    TYPES
@@ -99,6 +101,9 @@ export async function GET(
   _request: Request,
   context: RouteContext
 ) {
+  const auth = await requireApiPermission("purchases", "view");
+  if (!auth.ok) return auth.response;
+
   try {
     const purchaseId =
       await getPurchaseId(
@@ -112,7 +117,7 @@ export async function GET(
         })
         .first();
 
-    if (!purchase) {
+    if (!purchase || !canAccessBranchRow(auth.session, purchase.branchId)) {
       return NextResponse.json(
         {
           success: false,
@@ -228,6 +233,9 @@ export async function POST(
   request: Request,
   context: RouteContext
 ) {
+  const auth = await requireApiPermission("purchases", "edit");
+  if (!auth.ok) return auth.response;
+
   try {
     const purchaseId =
       await getPurchaseId(
@@ -297,7 +305,7 @@ export async function POST(
               })
               .first();
 
-          if (!purchase) {
+          if (!purchase || !canAccessBranchRow(auth.session, purchase.branchId)) {
             throw new Error(
               "Purchase not found."
             );
@@ -419,6 +427,8 @@ export async function POST(
                   paymentMethod,
 
                 amount,
+
+                branchId: auth.session.branchId,
               }
             );
 

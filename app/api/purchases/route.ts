@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { db } from "@/src/prisma/db";
+import { requireApiPermission } from "@/src/lib/auth/apiGuard";
+import { scopeRowsToBranch } from "@/src/lib/auth/branchScope";
 
 /* =====================================================
    TYPES
@@ -61,9 +63,14 @@ function normalizeStatus(
 ===================================================== */
 
 export async function GET() {
+  const auth = await requireApiPermission("purchases", "view");
+  if (!auth.ok) return auth.response;
+
   try {
-    const purchases =
-      await db.orm.public.Purchase.all();
+    const purchases = scopeRowsToBranch(
+      auth.session,
+      await db.orm.public.Purchase.all()
+    );
 
     const purchaseItems =
       await db.orm.public.PurchaseItem.all();
@@ -134,6 +141,9 @@ export async function GET() {
 export async function POST(
   request: Request
 ) {
+  const auth = await requireApiPermission("purchases", "create");
+  if (!auth.ok) return auth.response;
+
   try {
     const body =
       await request.json();
@@ -715,6 +725,7 @@ export async function POST(
                 status,
 
                 notes,
+                branchId: auth.session.branchId,
               }
             );
 
@@ -885,6 +896,8 @@ export async function POST(
                 referenceId:
                   purchase.id,
 
+                branchId: auth.session.branchId,
+
                 note:
                   `Purchase ${purchaseNumber}`,
               }
@@ -912,6 +925,7 @@ export async function POST(
 
                   amount:
                     paidAmount,
+                  branchId: auth.session.branchId,
                 }
               );
           }

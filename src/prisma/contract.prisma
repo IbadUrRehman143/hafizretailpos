@@ -337,6 +337,8 @@ model Invoice {
 
   customerName       String              @default("")
   customerPhone      String              @default("")
+  branchId           Int?
+
 
   // ========================================
   // INVOICE TOTALS
@@ -501,6 +503,13 @@ model Payment {
   method         String              @default("Cash")
 
   amount         Float
+  branchId       Int?
+
+
+  // SALE | REFUND
+  kind           String              @default("SALE")
+  referenceType  String              @default("")
+  referenceId    Int?
 
   createdAt      TimestamptzString   @default(now())
 }
@@ -578,6 +587,8 @@ model Purchase {
   // ========================================
 
   notes             String              @default("")
+  branchId          Int?
+
 
   // ========================================
   // TIMESTAMPS
@@ -684,6 +695,8 @@ model PurchasePayment {
   method         String              @default("Cash")
 
   amount         Float
+  branchId       Int?
+
 
   createdAt      TimestamptzString   @default(now())
 }
@@ -972,6 +985,8 @@ model InventoryTransaction {
   referenceId   Int?
 
   note          String?
+  branchId      Int?
+
 
   createdAt     DateTime @default(now())
 
@@ -1005,6 +1020,8 @@ model Expense {
 
   // Paid | Pending
   status        String            @default("Paid")
+  branchId      Int?
+
 
   createdAt     TimestamptzString @default(now())
   updatedAt     temporal.updatedAtString()
@@ -1043,6 +1060,8 @@ model ReturnRecord {
   status        String            @default("Pending")
 
   notes         String            @default("")
+  branchId      Int?
+
 
   createdAt     TimestamptzString @default(now())
   updatedAt     temporal.updatedAtString()
@@ -1096,3 +1115,65 @@ model ReturnItem {
 
   createdAt     TimestamptzString @default(now())
 }
+
+// ======================================================
+// AI KNOWLEDGE / RAG
+// ======================================================
+
+model AiKnowledgeSource {
+  id            Int               @id @default(autoincrement())
+  title         String
+  sourceType    String            @default("NOTE")
+  content       String
+  contentHash   String            @default("")
+  branchId      Int?
+  createdById   Int?
+  createdByName String            @default("")
+  createdAt     TimestamptzString @default(now())
+  updatedAt     temporal.updatedAtString()
+
+  chunks        AiKnowledgeChunk[]
+}
+
+model AiKnowledgeChunk {
+  id             Int               @id @default(autoincrement())
+  sourceId       Int
+  chunkIndex     Int
+  content        String
+  embeddingJson  String            @default("")
+
+  source         AiKnowledgeSource @relation(
+    fields: [sourceId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  createdAt      TimestamptzString @default(now())
+
+  @@unique([sourceId, chunkIndex])
+}
+
+// ======================================================
+// AI APPROVAL / AGENT ACTIONS
+// ======================================================
+
+model AiAction {
+  id            Int               @id @default(autoincrement())
+  workflow      String
+  kind          String
+  title         String
+  reason        String            @default("")
+  payloadJson   String            @default("{}")
+  status        String            @default("PENDING")
+  branchId      Int?
+  createdById   Int?
+  createdByName String            @default("")
+  decidedById   Int?
+  decidedByName String            @default("")
+  decidedAt     TimestamptzString?
+  executedAt    TimestamptzString?
+  failureReason String            @default("")
+  createdAt     TimestamptzString @default(now())
+  updatedAt     temporal.updatedAtString()
+}
+

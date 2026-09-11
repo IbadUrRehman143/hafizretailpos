@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/src/prisma/db";
 import { createLowStockNotification, createNotification } from "@/src/lib/notifications";
 import { getBusinessSettings, normalizeInvoicePrefix } from "@/src/lib/businessSettings";
+import { requireApiPermission } from "@/src/lib/auth/apiGuard";
+import { scopeRowsToBranch } from "@/src/lib/auth/branchScope";
 
 /* =====================================================
    TYPES
@@ -221,9 +223,14 @@ function reduceWeightEntries(
 ===================================================== */
 
 export async function GET() {
+  const auth = await requireApiPermission("sales", "view");
+  if (!auth.ok) return auth.response;
+
   try {
-    const invoices =
-      await db.orm.public.Invoice.all();
+    const invoices = scopeRowsToBranch(
+      auth.session,
+      await db.orm.public.Invoice.all()
+    );
 
     const fullInvoices =
       await Promise.all(
@@ -351,6 +358,9 @@ export async function GET() {
 export async function POST(
   request: Request
 ) {
+  const auth = await requireApiPermission("sales", "create");
+  if (!auth.ok) return auth.response;
+
   try {
     const body =
       (await request.json()) as InvoiceRequestBody;
@@ -782,6 +792,8 @@ export async function POST(
 
               customerPhone,
 
+              branchId: auth.session.branchId,
+
               subtotal,
 
               tax,
@@ -973,6 +985,8 @@ export async function POST(
 
               amount:
                 paidAmount,
+
+              branchId: auth.session.branchId,
             });
           }
 
@@ -1040,6 +1054,8 @@ export async function POST(
                 referenceId:
                   invoice.id,
 
+                branchId: auth.session.branchId,
+
                 note:
                   `Sale ${invoice.invoiceNumber}`,
               });
@@ -1103,6 +1119,8 @@ export async function POST(
 
               referenceId:
                 invoice.id,
+
+              branchId: auth.session.branchId,
 
               note:
                 `Sale ${invoice.invoiceNumber}`,

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/src/prisma/db";
+import { applyCompletedReturnAccounting } from "@/src/lib/returns/accounting";
+import { requireApiPermission } from "@/src/lib/auth/apiGuard";
+import { canAccessBranchRow } from "@/src/lib/auth/branchScope";
 
 type RawReturnItem = {
   invoiceItemId?: unknown;
@@ -56,6 +59,9 @@ export async function PATCH(
     params: Promise<{ id: string }>;
   }
 ) {
+  const auth = await requireApiPermission("returns", "edit");
+  if (!auth.ok) return auth.response;
+
   try {
     const { id: idValue } = await params;
     const id = Number(idValue);
@@ -72,7 +78,7 @@ export async function PATCH(
         .where({ id })
         .first();
 
-    if (!oldRecord) {
+    if (!oldRecord || !canAccessBranchRow(auth.session, oldRecord.branchId)) {
       return NextResponse.json(
         { error: "Return not found." },
         { status: 404 }
@@ -412,6 +418,35 @@ export async function PATCH(
 
     await db.transaction(
       async (tx) => {
+        const freshRecord = await tx.orm.public.ReturnRecord.where({ id }).first();
+        if (!freshRecord || !canAccessBranchRow(auth.session, freshRecord.branchId)) throw new Error("Return not found.");
+        if (String(freshRecord.status) === "Completed") throw new Error("Completed return cannot be edited.");
+
+        const freshInvoice = await tx.orm.public.Invoice.where({ id: Number(freshRecord.invoiceId) }).first();
+        if (!freshInvoice) throw new Error("Original invoice not found.");
+
+        const txReturnRecords = await tx.orm.public.ReturnRecord.all();
+        const txCompletedIds = new Set(
+          txReturnRecords
+            .filter((record: any) => String(record.status) === "Completed" && Number(record.id) !== id)
+            .map((record: any) => Number(record.id))
+        );
+        const txReturnItems = await tx.orm.public.ReturnItem.all();
+        const freshProducts = new Map<number, any>();
+
+        for (const item of validatedItems) {
+          const soldItem = await tx.orm.public.InvoiceItem.where({ id: item.invoiceItemId }).first();
+          if (!soldItem || Number(soldItem.invoiceId) !== Number(freshRecord.invoiceId)) throw new Error("Invoice item changed before return could be updated.");
+          const alreadyReturned = txReturnItems
+            .filter((ri: any) => Number(ri.invoiceItemId) === item.invoiceItemId && txCompletedIds.has(Number(ri.returnId)))
+            .reduce((sum: number, ri: any) => sum + Number(ri.quantity || 0), 0);
+          const available = Math.max(0, Number(soldItem.quantity || 0) - alreadyReturned);
+          if (item.quantity > available + 0.001) throw new Error(`${item.productName}: only ${available} ${item.unit} remains returnable.`);
+          const freshProduct = await tx.orm.public.Product.where({ id: item.productId }).first();
+          if (!freshProduct) throw new Error(`${item.productName} product not found.`);
+          freshProducts.set(item.productId, freshProduct);
+        }
+
         await tx.orm.public.ReturnRecord
           .where({ id })
           .update({
@@ -471,8 +506,8 @@ export async function PATCH(
             ) {
               const oldEntries =
                 String(
-                  item.product
-                    .weightEntries ||
+                  freshProducts.get(item.productId)
+                    ?.weightEntries ||
                     ""
                 ).trim();
 
@@ -499,8 +534,8 @@ export async function PATCH(
                 .update({
                   quantity:
                     Number(
-                      item.product
-                        .quantity || 0
+                      freshProducts.get(item.productId)
+                        ?.quantity || 0
                     ) +
                     item.quantity,
                 });
@@ -517,10 +552,28 @@ export async function PATCH(
                 referenceType:
                   "RETURN",
                 referenceId: id,
+                branchId: auth.session.branchId,
                 note: `${oldRecord.returnNo} completed from ${invoice.invoiceNumber}`,
               }
             );
           }
+        }
+
+        if (shouldApplyStock) {
+          await applyCompletedReturnAccounting(tx, {
+            returnId: id,
+            invoiceId: Number(freshRecord.invoiceId),
+            returnNo: String(freshRecord.returnNo),
+            totalAmount,
+            refundAmount,
+            refundMethod,
+            actor: {
+              id: auth.session.id,
+              name: auth.session.name,
+              role: auth.session.role,
+              branchId: auth.session.branchId,
+            },
+          });
         }
       }
     );
@@ -553,6 +606,9 @@ export async function DELETE(
     params: Promise<{ id: string }>;
   }
 ) {
+  const auth = await requireApiPermission("returns", "delete");
+  if (!auth.ok) return auth.response;
+
   try {
     const { id: idValue } = await params;
     const id = Number(idValue);
@@ -572,7 +628,7 @@ export async function DELETE(
         .where({ id })
         .first();
 
-    if (!oldRecord) {
+    if (!oldRecord || !canAccessBranchRow(auth.session, oldRecord.branchId)) {
       return NextResponse.json(
         { error: "Return not found." },
         { status: 404 }

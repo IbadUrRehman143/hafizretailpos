@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -56,15 +56,15 @@ export default function BusinessIntelligencePage() {
           href="/dashboard"
           className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 transition hover:text-slate-950"
         >
-          <span aria-hidden="true">←</span>
+          <span aria-hidden="true">â†</span>
           Back to Dashboard
         </Link>
 
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">Phase 7 · Verified Business Intelligence</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">Phase 7 Â· Verified Business Command Center</p>
             <h1 className="mt-1 text-2xl font-bold text-slate-950 sm:text-3xl">Sales, Customer & Expense Intelligence</h1>
-            <p className="mt-1 text-sm text-slate-500">PostgreSQL → deterministic intelligence → verified AI tools.</p>
+            <p className="mt-1 text-sm text-slate-500">PostgreSQL â†’ deterministic intelligence â†’ verified AI tools.</p>
           </div>
           <div className="flex items-center gap-2">
             <select value={days} onChange={(e) => setDays(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
@@ -78,7 +78,7 @@ export default function BusinessIntelligencePage() {
         </div>
 
         {loading ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-6">Loading verified intelligence…</div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-6">Loading verified intelligenceâ€¦</div>
         ) : error ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">{error}</div>
         ) : data ? (
@@ -106,9 +106,9 @@ export default function BusinessIntelligencePage() {
               <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h2 className="font-bold text-slate-950">Credit Aging</h2>
                 <div className="mt-4 grid grid-cols-2 gap-3">
-                  <Card title="0–7 Days" value={money(data.credit.aging.days0to7)} />
-                  <Card title="8–30 Days" value={money(data.credit.aging.days8to30)} />
-                  <Card title="31–60 Days" value={money(data.credit.aging.days31to60)} />
+                  <Card title="0â€“7 Days" value={money(data.credit.aging.days0to7)} />
+                  <Card title="8â€“30 Days" value={money(data.credit.aging.days8to30)} />
+                  <Card title="31â€“60 Days" value={money(data.credit.aging.days31to60)} />
                   <Card title="61+ Days" value={money(data.credit.aging.days61plus)} />
                 </div>
               </section>
@@ -170,3 +170,4 @@ export default function BusinessIntelligencePage() {
     </div>
   );
 }
+

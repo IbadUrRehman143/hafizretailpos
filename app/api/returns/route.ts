@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/src/prisma/db";
+import { applyCompletedReturnAccounting } from "@/src/lib/returns/accounting";
+import { requireApiPermission } from "@/src/lib/auth/apiGuard";
+import { scopeRowsToBranch } from "@/src/lib/auth/branchScope";
+import { canAccessBranchRow } from "@/src/lib/auth/branchScope";
 
 type RawReturnItem = {
   invoiceItemId?: unknown;
@@ -49,8 +53,14 @@ function normalizeRefundMethod(value: unknown) {
 }
 
 export async function GET() {
+  const auth = await requireApiPermission("returns", "view");
+  if (!auth.ok) return auth.response;
+
   try {
-    const rows = await db.orm.public.ReturnRecord.all();
+    const rows = scopeRowsToBranch(
+      auth.session,
+      await db.orm.public.ReturnRecord.all()
+    );
     const items = await db.orm.public.ReturnItem.all();
 
     const returns = rows
@@ -75,6 +85,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const auth = await requireApiPermission("returns", "create");
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json();
 
@@ -131,7 +144,7 @@ export async function POST(req: Request) {
         .where({ id: invoiceId })
         .first();
 
-    if (!invoice) {
+    if (!invoice || !canAccessBranchRow(auth.session, invoice.branchId)) {
       return NextResponse.json(
         { error: "Invoice not found." },
         { status: 404 }
@@ -354,6 +367,33 @@ export async function POST(req: Request) {
 
     const created = await db.transaction(
       async (tx) => {
+        // Re-read every value that controls returnability/stock inside the transaction.
+        // This prevents the stale-snapshot TOCTOU bug from the previous implementation.
+        const freshInvoice = await tx.orm.public.Invoice.where({ id: invoiceId }).first();
+        if (!freshInvoice || !canAccessBranchRow(auth.session, freshInvoice.branchId)) throw new Error("Invoice not found.");
+
+        const txReturnRecords = await tx.orm.public.ReturnRecord.all();
+        const txCompletedIds = new Set(
+          txReturnRecords
+            .filter((record: any) => String(record.status) === "Completed")
+            .map((record: any) => Number(record.id))
+        );
+        const txReturnItems = await tx.orm.public.ReturnItem.all();
+        const freshProducts = new Map<number, any>();
+
+        for (const item of validatedItems) {
+          const soldItem = await tx.orm.public.InvoiceItem.where({ id: item.invoiceItemId }).first();
+          if (!soldItem || Number(soldItem.invoiceId) !== invoiceId) throw new Error("Invoice item changed before return could be saved.");
+          const alreadyReturned = txReturnItems
+            .filter((ri: any) => Number(ri.invoiceItemId) === item.invoiceItemId && txCompletedIds.has(Number(ri.returnId)))
+            .reduce((sum: number, ri: any) => sum + Number(ri.quantity || 0), 0);
+          const remaining = Math.max(0, Number(soldItem.quantity || 0) - alreadyReturned);
+          if (item.quantity > remaining + 0.001) throw new Error(`${item.productName}: return quantity changed; only ${remaining} ${item.unit} remains returnable.`);
+          const freshProduct = await tx.orm.public.Product.where({ id: item.productId }).first();
+          if (!freshProduct) throw new Error(`${item.productName} product not found.`);
+          freshProducts.set(item.productId, freshProduct);
+        }
+
         const returnRecord =
           await tx.orm.public.ReturnRecord.create({
             returnNo: "PENDING",
@@ -374,6 +414,7 @@ export async function POST(req: Request) {
             reason: String(body.reason || ""),
             status,
             notes: String(body.notes || ""),
+            branchId: auth.session.branchId,
           });
 
         const returnNo = `RET-${String(
@@ -400,8 +441,9 @@ export async function POST(req: Request) {
 
           if (status === "Completed") {
             if (item.productType === "weight") {
+              const freshProduct = freshProducts.get(item.productId);
               const oldEntries = String(
-                item.product.weightEntries || ""
+                freshProduct?.weightEntries || ""
               ).trim();
 
               const newEntries = [
@@ -422,7 +464,7 @@ export async function POST(req: Request) {
                 .update({
                   quantity:
                     Number(
-                      item.product.quantity || 0
+                      freshProducts.get(item.productId)?.quantity || 0
                     ) + item.quantity,
                 });
             }
@@ -435,10 +477,28 @@ export async function POST(req: Request) {
                 unit: item.unit,
                 referenceType: "RETURN",
                 referenceId: returnRecord.id,
+                branchId: auth.session.branchId,
                 note: `${returnNo} from ${invoice.invoiceNumber}`,
               }
             );
           }
+        }
+
+        if (status === "Completed") {
+          await applyCompletedReturnAccounting(tx, {
+            returnId: returnRecord.id,
+            invoiceId,
+            returnNo,
+            totalAmount,
+            refundAmount,
+            refundMethod,
+            actor: {
+              id: auth.session.id,
+              name: auth.session.name,
+              role: auth.session.role,
+              branchId: auth.session.branchId,
+            },
+          });
         }
 
         return {

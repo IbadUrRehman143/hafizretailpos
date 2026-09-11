@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/src/prisma/db";
+import { requireApiPermission } from "@/src/lib/auth/apiGuard";
+import { canAccessBranchRow } from "@/src/lib/auth/branchScope";
 
 type RouteContext = {
   params: Promise<{
@@ -61,6 +63,9 @@ export async function GET(
   request: Request,
   context: RouteContext
 ) {
+  const auth = await requireApiPermission("customers", "view");
+  if (!auth.ok) return auth.response;
+
   try {
     const { id } =
       await context.params;
@@ -123,8 +128,8 @@ export async function GET(
     const customerInvoices =
       allInvoices.filter(
         (invoice) =>
-          invoice.customerId ===
-          customerId
+          invoice.customerId === customerId &&
+          canAccessBranchRow(auth.session, invoice.branchId)
       );
 
     const invoiceIds =
@@ -292,6 +297,9 @@ export async function POST(
   request: Request,
   context: RouteContext
 ) {
+  const auth = await requireApiPermission("customers", "edit");
+  if (!auth.ok) return auth.response;
+
   try {
     const { id } =
       await context.params;
@@ -539,6 +547,8 @@ export async function POST(
 
                 amount:
                   allocation,
+
+                branchId: auth.session.branchId,
               }
             );
 

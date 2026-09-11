@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 import {
   ShoppingCart,
@@ -925,12 +925,22 @@ export default async function DashboardPage() {
           {/* BUSINESS INTELLIGENCE — PHASE 7 */}
 
           <OverallCard
-            title="Business Intelligence"
+            title="Business Command Center"
             value=""
             description="Sales, customers, credit, expenses & profitability"
             href="/dashboard/business-intelligence"
             icon={<TrendingUp size={22} />}
             iconClassName="bg-rose-100 text-rose-600"
+          />
+
+          {/* HECC AUTONOMOUS INTELLIGENCE SUITE */}
+          <OverallCard
+            title="Autonomous Intelligence Center"
+            value=""
+            description="AI Knowledge Hub, Autonomous Business Agent & AI Approval Center"
+            href="/dashboard/ai-command-center"
+            icon={<TrendingUp size={22} />}
+            iconClassName="bg-blue-100 text-blue-600"
           />
         </div>
 
@@ -1400,3 +1410,7 @@ export default async function DashboardPage() {
     </DashboardLayout>
   );
 }
+
+
+
+
