@@ -17,6 +17,7 @@ import DashboardLayout from "../components/layout/dashboardLayout";
 import StatCard from "../dashboard/statCard";
 
 import { db } from "@/src/prisma/db";
+import { getDashboardAnalytics } from "@/src/lib/analytics";
 
 /* =====================================================
    HELPERS
@@ -251,12 +252,14 @@ function OverallCard({
   description,
   href,
   icon,
+  iconClassName = "bg-blue-50 text-blue-600",
 }: {
   title: string;
   value: string;
   description: string;
   href: string;
   icon: React.ReactNode;
+  iconClassName?: string;
 }) {
   return (
     <Link
@@ -278,7 +281,7 @@ function OverallCard({
           </p>
         </div>
 
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition group-hover:bg-blue-600 group-hover:text-white sm:h-11 sm:w-11">
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition duration-200 group-hover:scale-105 sm:h-11 sm:w-11 ${iconClassName}`}>
           {icon}
         </div>
       </div>
@@ -310,12 +313,14 @@ export default async function DashboardPage() {
     customers,
     products,
     suppliers,
+    analytics,
   ] = await Promise.all([
     db.orm.public.Invoice.all(),
     db.orm.public.InvoiceItem.all(),
     db.orm.public.Customer.all(),
     db.orm.public.Product.all(),
     db.orm.public.Supplier.all(),
+    getDashboardAnalytics(),
   ]);
 
   /* =================================================
@@ -388,14 +393,10 @@ export default async function DashboardPage() {
      TODAY SALES
   ================================================= */
 
+  // Phase 3 deterministic analytics layer
   const todaySales =
-    todayInvoices.reduce(
-      (total, invoice) =>
-        total +
-        numberValue(
-          invoice.total
-        ),
-      0
+    numberValue(
+      analytics.todaySales.revenue
     );
 
   const yesterdaySales =
@@ -413,7 +414,9 @@ export default async function DashboardPage() {
   ================================================= */
 
   const todayOrders =
-    todayInvoices.length;
+    numberValue(
+      analytics.todaySales.invoiceCount
+    );
 
   const yesterdayOrders =
     yesterdayInvoices.length;
@@ -561,101 +564,36 @@ export default async function DashboardPage() {
     invoices.length;
 
   /* =================================================
-     INVENTORY DATA
+     PHASE 3 INVENTORY ANALYTICS
 
-     Only ACTIVE products should appear in
-     Dashboard inventory statistics.
+     Source of truth:
+     src/lib/analytics -> verified database analytics
   ================================================= */
 
-  const inventoryProducts =
-    activeProducts.map(
-      (product) => {
-        const type =
-          String(
-            product.type ||
-              "quantity"
-          );
-
-        const stock =
-          type === "weight"
-            ? calculateWeightStock(
-                product.weightEntries
-              )
-            : Math.max(
-                0,
-                numberValue(
-                  product.quantity
-                )
-              );
-
-        return {
-          id: Number(
-            product.id
-          ),
-
-          name: String(
-            product.name
-          ),
-
-          type,
-
-          unit:
-            type === "weight"
-              ? "KG"
-              : String(
-                  product.unit ||
-                    "PCS"
-                ),
-
-          stock,
-        };
-      }
-    );
-
-  const inStockProducts =
-    inventoryProducts.filter(
-      (product) =>
-        product.stock > 0
-    ).length;
-
-  const outOfStockProducts =
-    inventoryProducts.filter(
-      (product) =>
-        product.stock <= 0
-    ).length;
-
-  /* =================================================
-     LOW STOCK
-  ================================================= */
+  const inventoryAnalytics =
+    analytics.inventoryValue;
 
   const lowStockProducts =
-    inventoryProducts
-      .filter(
-        (product) => {
-          if (
-            product.type ===
-            "weight"
-          ) {
-            return (
-              product.stock >
-                0 &&
-              product.stock <=
-                50
-            );
-          }
+    analytics.lowStockProducts
+      .slice(0, 5);
 
-          return (
-            product.stock > 0 &&
-            product.stock <=
-              10
-          );
-        }
-      )
-      .sort(
-        (a, b) =>
-          a.stock -
-          b.stock
-      )
+  const outOfStockProducts =
+    analytics.outOfStockProducts.length;
+
+  const inStockProducts =
+    Math.max(
+      0,
+      numberValue(
+        inventoryAnalytics.products
+      ) - outOfStockProducts
+    );
+
+  const topSellingProducts =
+    analytics.topSellingProducts
+      .slice(0, 5);
+
+  const topCustomers =
+    analytics.topCustomers
       .slice(0, 5);
 
   /* =================================================
@@ -772,7 +710,7 @@ export default async function DashboardPage() {
             </h1>
 
             <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
-              Hafiz Retail POS business overview.
+              Hafiz Retail POS live business overview powered by verified analytics.
             </p>
           </div>
 
@@ -798,7 +736,7 @@ export default async function DashboardPage() {
           </h2>
 
           <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
-            Aaj ki business performance.
+            Today's business performance at a glance.
           </p>
         </div>
 
@@ -822,10 +760,9 @@ export default async function DashboardPage() {
                 salesTrend.up
               }
               icon={
-                <DollarSign
-                  size={21}
-                />
+                <DollarSign size={21} />
               }
+              iconClassName="bg-blue-100 text-blue-600"
             />
           </Link>
 
@@ -848,10 +785,9 @@ export default async function DashboardPage() {
                 orderTrend.up
               }
               icon={
-                <ShoppingCart
-                  size={21}
-                />
+                <ShoppingCart size={21} />
               }
+              iconClassName="bg-emerald-100 text-emerald-600"
             />
           </Link>
 
@@ -874,10 +810,9 @@ export default async function DashboardPage() {
                 profitTrend.up
               }
               icon={
-                <TrendingUp
-                  size={21}
-                />
+                <TrendingUp size={21} />
               }
+              iconClassName="bg-orange-100 text-orange-600"
             />
           </Link>
 
@@ -900,10 +835,9 @@ export default async function DashboardPage() {
                 customerTrend.up
               }
               icon={
-                <Users
-                  size={21}
-                />
+                <Users size={21} />
               }
+              iconClassName="bg-violet-100 text-violet-600"
             />
           </Link>
         </div>
@@ -918,7 +852,7 @@ export default async function DashboardPage() {
           </h2>
 
           <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
-            Poore system ka current data.
+            Current overview of your entire business.
           </p>
         </div>
 
@@ -932,11 +866,8 @@ export default async function DashboardPage() {
             )}
             description={`${lowStockProducts.length} low stock • ${outOfStockProducts} out of stock`}
             href="/dashboard/inventory"
-            icon={
-              <Boxes
-                size={22}
-              />
-            }
+            icon={<Boxes size={22} />}
+            iconClassName="bg-cyan-100 text-cyan-600"
           />
 
           {/* PRODUCTS */}
@@ -948,11 +879,8 @@ export default async function DashboardPage() {
             )}
             description="Total active products"
             href="/dashboard/product"
-            icon={
-              <Package
-                size={22}
-              />
-            }
+            icon={<Package size={22} />}
+            iconClassName="bg-orange-100 text-orange-600"
           />
 
           {/* SALES */}
@@ -964,11 +892,8 @@ export default async function DashboardPage() {
             )}
             description={`${totalInvoices} total invoices`}
             href="/dashboard/sales"
-            icon={
-              <ReceiptText
-                size={22}
-              />
-            }
+            icon={<ReceiptText size={22} />}
+            iconClassName="bg-emerald-100 text-emerald-600"
           />
 
           {/* SUPPLIERS */}
@@ -980,12 +905,200 @@ export default async function DashboardPage() {
             )}
             description="Total active suppliers"
             href="/dashboard/suppliers"
-            icon={
-              <Truck
-                size={22}
-              />
-            }
+            icon={<Truck size={22} />}
+            iconClassName="bg-violet-100 text-violet-600"
           />
+        </div>
+
+        {/* =============================================
+            INVENTORY INTELLIGENCE — PHASE 3
+        ============================================= */}
+
+        <div className="mb-4 mt-7 sm:mt-9">
+          <h2 className="text-base font-bold text-slate-900 sm:text-lg">
+            Inventory Intelligence
+          </h2>
+
+          <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
+            Verified stock and valuation from the Phase 3 analytics layer.
+          </p>
+        </div>
+
+        <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-5 xl:gap-5">
+          <OverallCard
+            title="Quantity Stock"
+            value={`${numberValue(
+              inventoryAnalytics.totalQuantityStock
+            ).toLocaleString("en-PK")} PCS`}
+            description={`${numberValue(
+              inventoryAnalytics.quantityProducts
+            )} quantity products`}
+            href="/dashboard/inventory"
+            icon={<Package size={22} />}
+            iconClassName="bg-blue-100 text-blue-600"
+          />
+
+          <OverallCard
+            title="Weight Stock"
+            value={`${numberValue(
+              inventoryAnalytics.totalWeightStock
+            ).toLocaleString("en-PK", {
+              maximumFractionDigits: 2,
+            })} KG`}
+            description={`${numberValue(
+              inventoryAnalytics.weightProducts
+            )} weight products`}
+            href="/dashboard/inventory"
+            icon={<Boxes size={22} />}
+            iconClassName="bg-cyan-100 text-cyan-600"
+          />
+
+          <OverallCard
+            title="Cost Value"
+            value={formatCurrency(
+              numberValue(
+                inventoryAnalytics.totalCostValue
+              )
+            )}
+            description="Current inventory cost value"
+            href="/dashboard/inventory"
+            icon={<DollarSign size={22} />}
+            iconClassName="bg-amber-100 text-amber-600"
+          />
+
+          <OverallCard
+            title="Retail Value"
+            value={formatCurrency(
+              numberValue(
+                inventoryAnalytics.totalRetailValue
+              )
+            )}
+            description="Potential retail value"
+            href="/dashboard/inventory"
+            icon={<ReceiptText size={22} />}
+            iconClassName="bg-fuchsia-100 text-fuchsia-600"
+          />
+
+          <OverallCard
+            title="Gross Margin"
+            value={formatCurrency(
+              numberValue(
+                inventoryAnalytics.potentialGrossMargin
+              )
+            )}
+            description="Potential inventory gross margin"
+            href="/dashboard/reports"
+            icon={<TrendingUp size={22} />}
+            iconClassName="bg-emerald-100 text-emerald-600"
+          />
+        </div>
+
+        {/* =============================================
+            TOP PRODUCTS + TOP CUSTOMERS
+        ============================================= */}
+
+        <div className="dashboard-bottom-grid mt-5 grid min-w-0 grid-cols-1 gap-4 sm:mt-6 sm:gap-6 lg:grid-cols-2">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-4 sm:items-center sm:p-5">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 sm:text-base">
+                  Top Selling Products
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Real sales quantity and revenue.
+                </p>
+              </div>
+
+              <Link
+                href="/dashboard/product"
+                className="shrink-0 text-xs font-semibold text-blue-600 hover:text-blue-700 sm:text-sm"
+              >
+                View Products
+              </Link>
+            </div>
+
+            {topSellingProducts.length === 0 ? (
+              <div className="p-8 text-center text-sm text-slate-500">
+                No product sales data yet.
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {topSellingProducts.map((product, index) => (
+                  <Link
+                    key={`${product.productId ?? product.productName}-${index}`}
+                    href="/dashboard/product"
+                    className="flex items-center justify-between gap-3 p-3.5 transition hover:bg-slate-50 sm:p-4"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900 sm:text-base">
+                        {product.productName}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Sold: {numberValue(product.quantity).toLocaleString("en-PK", {
+                          maximumFractionDigits: 2,
+                        })}
+                      </p>
+                    </div>
+
+                    <p className="shrink-0 text-sm font-bold text-slate-900">
+                      {formatCurrency(numberValue(product.revenue))}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-4 sm:items-center sm:p-5">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 sm:text-base">
+                  Top Customers
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Customers ranked by real revenue.
+                </p>
+              </div>
+
+              <Link
+                href="/dashboard/customers"
+                className="shrink-0 text-xs font-semibold text-blue-600 hover:text-blue-700 sm:text-sm"
+              >
+                View Customers
+              </Link>
+            </div>
+
+            {topCustomers.length === 0 ? (
+              <div className="p-8 text-center text-sm text-slate-500">
+                No customer analytics yet.
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {topCustomers.map((customer, index) => (
+                  <Link
+                    key={`${customer.customerId ?? customer.customerName}-${index}`}
+                    href="/dashboard/customers"
+                    className="flex items-center justify-between gap-3 p-3.5 transition hover:bg-slate-50 sm:p-4"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900 sm:text-base">
+                        {customer.customerName}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {numberValue(customer.invoices)} invoice(s) • Due {formatCurrency(
+                          numberValue(customer.due)
+                        )}
+                      </p>
+                    </div>
+
+                    <p className="shrink-0 text-sm font-bold text-slate-900">
+                      {formatCurrency(numberValue(customer.revenue))}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* =============================================

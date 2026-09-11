@@ -9,7 +9,6 @@ import {
 
 import {
   ArrowLeft,
-  RefreshCw,
   XCircle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -421,17 +420,6 @@ setHistoryError(
     loadInventory,
     loadInventoryHistory,
   ]);
-
-  /* =================================================
-     REFRESH ALL
-  ================================================= */
-
-  async function refreshAll() {
-    await Promise.all([
-      loadInventory(),
-      loadInventoryHistory(),
-    ]);
-  }
 
   /* =================================================
      CATEGORY LIST
@@ -1020,29 +1008,7 @@ setHistoryError(
 
           {/* HEADER ACTIONS */}
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:flex md:shrink-0">
-            <button
-              type="button"
-              onClick={refreshAll}
-              disabled={
-                loading ||
-                historyLoading
-              }
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
-            >
-              <RefreshCw
-                size={17}
-                className={
-                  loading ||
-                  historyLoading
-                    ? "animate-spin"
-                    : ""
-                }
-              />
-
-              Refresh
-            </button>
-
+          <div className="w-full md:w-auto md:shrink-0">
             <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
               <p className="text-xs text-slate-500">
                 Inventory Value

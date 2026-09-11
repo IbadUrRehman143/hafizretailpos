@@ -6,7 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 type UserStatus =
@@ -68,6 +68,8 @@ const emptyUserForm = {
   name: "",
   email: "",
   phone: "",
+  password: "",
+  confirmPassword: "",
   roleId: "",
   branchId: "",
   status:
@@ -527,6 +529,8 @@ export default function UsersPage() {
       name: user.name,
       email: user.email,
       phone: user.phone,
+      password: "",
+      confirmPassword: "",
       roleId:
         user.roleId
           ? String(
@@ -568,6 +572,34 @@ export default function UsersPage() {
       return;
     }
 
+    if (!editingUser && !userForm.password) {
+      alert("Password is required for a new user.");
+      return;
+    }
+
+    if (userForm.password) {
+      if (userForm.password.length < 8) {
+        alert("Password must be at least 8 characters.");
+        return;
+      }
+
+      if (
+        !/[A-Za-z]/.test(userForm.password) ||
+        !/\d/.test(userForm.password)
+      ) {
+        alert("Password must contain at least one letter and one number.");
+        return;
+      }
+
+      if (
+        userForm.password !==
+        userForm.confirmPassword
+      ) {
+        alert("Passwords do not match.");
+        return;
+      }
+    }
+
     try {
       const response =
         await fetch(
@@ -596,6 +628,13 @@ export default function UsersPage() {
 
               phone:
                 userForm.phone.trim(),
+
+              ...(userForm.password
+                ? {
+                    password:
+                      userForm.password,
+                  }
+                : {}),
 
               roleId: Number(
                 userForm.roleId
@@ -1415,6 +1454,51 @@ function UserModal({
           }
         />
 
+        <PasswordField
+          label={
+            editing
+              ? "New Password"
+              : "Password *"
+          }
+          value={form.password}
+          placeholder={
+            editing
+              ? "Leave blank to keep current password"
+              : "Minimum 8 characters"
+          }
+          onChange={(value) =>
+            setForm(
+              (current) => ({
+                ...current,
+                password: value,
+              })
+            )
+          }
+        />
+
+        <PasswordField
+          label={
+            editing
+              ? "Confirm New Password"
+              : "Confirm Password *"
+          }
+          value={form.confirmPassword}
+          placeholder={
+            editing
+              ? "Re-enter new password"
+              : "Re-enter password"
+          }
+          onChange={(value) =>
+            setForm(
+              (current) => ({
+                ...current,
+                confirmPassword:
+                  value,
+              })
+            )
+          }
+        />
+
         <SelectField
           label="Role *"
           value={form.roleId}
@@ -1819,6 +1903,82 @@ function Field({
         }
         className="w-full rounded-xl border bg-slate-50 px-4 py-3"
       />
+    </div>
+  );
+}
+
+function PasswordField({
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder?: string;
+  onChange: (value: string) => void;
+}) {
+  const [showPassword, setShowPassword] =
+    useState(false);
+
+  return (
+    <div>
+      <label className="mb-2 block text-sm font-bold">
+        {label}
+      </label>
+
+      <div className="relative">
+        <input
+          type={
+            showPassword
+              ? "text"
+              : "password"
+          }
+          value={value}
+          placeholder={placeholder}
+          autoComplete="new-password"
+          onChange={(event) =>
+            onChange(
+              event.target.value
+            )
+          }
+          className="w-full rounded-xl border bg-slate-50 px-4 py-3 pr-12"
+        />
+
+        <button
+          type="button"
+          onClick={() =>
+            setShowPassword(
+              (current) =>
+                !current
+            )
+          }
+          className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-500 transition hover:text-slate-800"
+          aria-label={
+            showPassword
+              ? "Hide password"
+              : "Show password"
+          }
+          title={
+            showPassword
+              ? "Hide password"
+              : "Show password"
+          }
+        >
+          {showPassword ? (
+            <EyeOff size={18} />
+          ) : (
+            <Eye size={18} />
+          )}
+        </button>
+      </div>
+
+      <p className="mt-1.5 text-xs text-slate-400">
+        {label.includes("Password") &&
+        !label.includes("Confirm")
+          ? "Use at least 8 characters with a letter and a number."
+          : ""}
+      </p>
     </div>
   );
 }

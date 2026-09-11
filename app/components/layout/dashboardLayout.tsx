@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import Sidebar from "./sidebar";
 import Header from "./header";
+import FloatingAiAgent from "../ai/floatingAiAgent";
 
 type DashboardLayoutProps = {
   children: ReactNode;
@@ -76,19 +77,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
       <main
         className={`min-h-screen min-w-0 max-w-full overflow-x-hidden transition-[margin] duration-300 ${
-          forceMobile
-            ? "ml-0 w-full"
-            : sidebarCollapsed
-              ? "ml-20"
-              : "ml-64"
+          forceMobile ? "ml-0 w-full" : sidebarCollapsed ? "ml-20" : "ml-64"
         }`}
       >
         <Header onMenuClick={handleMenuClick} />
 
-        <div className="w-full min-w-0 max-w-full overflow-x-hidden">
-          {children}
-        </div>
+        <div className="w-full min-w-0 max-w-full overflow-x-hidden">{children}</div>
       </main>
+
+      <FloatingAiAgent />
 
       <style jsx global>{`
         .dashboard-force-mobile {

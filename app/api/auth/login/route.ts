@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { db } from "@/src/prisma/db";
 import { verifyPassword } from "@/src/lib/auth/password";
 import { setSessionCookie } from "@/src/lib/auth/session";
@@ -6,6 +7,8 @@ import { isSuperAdminRole } from "@/src/lib/auth/constants";
 
 export async function POST(request: NextRequest) {
   try {
+    console.log("LOGIN 0 - request received");
+
     const body = await request.json();
 
     const email = String(body.email || "")
@@ -20,17 +23,26 @@ export async function POST(request: NextRequest) {
           success: false,
           message: "Email and password are required.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
-    // User find
-    const users = await db.orm.public.AppUser.all();
+    /* =====================================================
+       FIND USER
+    ===================================================== */
 
-    const user = users.find(
-      (u) =>
-        String(u.email).trim().toLowerCase() === email
-    );
+    console.log("LOGIN 1 - finding user");
+
+    const user =
+      await db.orm.public.AppUser
+        .where({
+          email,
+        })
+        .first();
+
+    console.log("LOGIN 2 - user lookup completed");
 
     if (!user) {
       return NextResponse.json(
@@ -38,26 +50,39 @@ export async function POST(request: NextRequest) {
           success: false,
           message: "Invalid email or password.",
         },
-        { status: 401 }
+        {
+          status: 401,
+        }
       );
     }
 
-    // User status check
+    /* =====================================================
+       STATUS CHECK
+    ===================================================== */
+
     if (user.status !== "Active") {
       return NextResponse.json(
         {
           success: false,
           message: "Your account is not active.",
         },
-        { status: 403 }
+        {
+          status: 403,
+        }
       );
     }
 
-    // Password verify
-    const isPasswordValid = verifyPassword(
-      password,
-      user.passwordHash
-    );
+    /* =====================================================
+       PASSWORD CHECK
+    ===================================================== */
+
+    console.log("LOGIN 3 - verifying password");
+
+    const isPasswordValid =
+      verifyPassword(
+        password,
+        user.passwordHash
+      );
 
     if (!isPasswordValid) {
       return NextResponse.json(
@@ -65,50 +90,105 @@ export async function POST(request: NextRequest) {
           success: false,
           message: "Invalid email or password.",
         },
-        { status: 401 }
+        {
+          status: 401,
+        }
       );
     }
 
-    // Role + permissions fetch
-    const [roles, rolePermissions] = await Promise.all([
-      db.orm.public.Role.all(),
-      db.orm.public.RolePermission.all(),
-    ]);
+    console.log("LOGIN 4 - password verified");
 
-    const userRole = roles.find(
-      (role) => role.id === user.roleId
-    );
+    /* =====================================================
+       LOAD ROLE
+    ===================================================== */
 
-    const permissions =
-      isSuperAdminRole(userRole?.name)
-        ? ["*"]
-        : rolePermissions
-            .filter(
-              (permission) =>
-                permission.roleId === user.roleId
-            )
-            .map(
-              (permission) =>
-                permission.permission
-            );
+    console.log("LOGIN 5 - loading role");
 
-    // Last login update
-    await db.orm.public.AppUser.where({
-      id: user.id,
-    }).update({
-      lastLoginAt: new Date().toISOString(),
-    });
+    const userRole =
+      await db.orm.public.Role
+        .where({
+          id: user.roleId,
+        })
+        .first();
 
-    // Complete session cookie
+    console.log("LOGIN 6 - role loaded");
+
+    if (!userRole) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "User role not found.",
+        },
+        {
+          status: 403,
+        }
+      );
+    }
+
+    /* =====================================================
+       LOAD PERMISSIONS
+    ===================================================== */
+
+    let permissions: string[] = [];
+
+    if (isSuperAdminRole(userRole.name)) {
+      permissions = ["*"];
+    } else {
+      console.log("LOGIN 7 - loading permissions");
+
+      const allPermissions =
+        await db.orm.public.RolePermission.all();
+
+      permissions = allPermissions
+        .filter(
+          (permission) =>
+            permission.roleId === user.roleId
+        )
+        .map(
+          (permission) =>
+            permission.permission
+        );
+
+      console.log("LOGIN 8 - permissions loaded");
+    }
+
+    /* =====================================================
+       LAST LOGIN UPDATE
+    ===================================================== */
+
+    console.log("LOGIN 9 - updating last login");
+
+    await db.orm.public.AppUser
+      .where({
+        id: user.id,
+      })
+      .update({
+        lastLoginAt: new Date().toISOString(),
+      });
+
+    console.log("LOGIN 10 - last login updated");
+
+    /* =====================================================
+       CREATE SESSION COOKIE
+    ===================================================== */
+
+    console.log("LOGIN 11 - setting session cookie");
+
     await setSessionCookie({
       id: user.id,
       email: user.email,
       name: user.name,
-      role: userRole?.name || "USER",
+      role: userRole.name,
       roleId: user.roleId,
       branchId: user.branchId,
       permissions,
     });
+
+    console.log("LOGIN 12 - session cookie set");
+
+    /* =====================================================
+       SUCCESS
+    ===================================================== */
 
     return NextResponse.json({
       success: true,
@@ -117,7 +197,7 @@ export async function POST(request: NextRequest) {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: userRole?.name || "USER",
+        role: userRole.name,
         roleId: user.roleId,
         branchId: user.branchId,
         permissions,
@@ -125,16 +205,21 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error(
-      "POST /api/auth/login:",
+      "POST /api/auth/login ERROR:",
       error
     );
 
     return NextResponse.json(
       {
         success: false,
-        message: "Login failed.",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Login failed.",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
