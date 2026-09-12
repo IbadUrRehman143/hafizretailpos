@@ -1,4 +1,4 @@
-﻿import "server-only";
+import "server-only";
 import { createHash } from "node:crypto";
 import { db } from "@/src/prisma/db";
 import { cosineSimilarity, embedText } from "./embeddings";
@@ -87,54 +87,4 @@ export async function searchKnowledge(query: string, actor: ActorScope, limit = 
     if (score > 0) matches.push({ sourceId: Number(source.id), title: String(source.title), sourceType: sourceType(source.sourceType), excerpt: String(chunk.content).slice(0,600), score: Number(score.toFixed(4)), retrievalMode });
   }
   return matches.sort((a,b) => b.score-a.score).slice(0, Math.max(1,Math.min(limit,10)));
-}
-
-
-export async function deleteKnowledge(sourceId: number, actor: ActorScope) {
-  if (!Number.isInteger(sourceId) || sourceId <= 0) {
-    throw new Error("Valid knowledge source ID is required.");
-  }
-
-  return db.transaction(async (tx) => {
-    const source = await tx.orm.public.AiKnowledgeSource
-      .where({ id: sourceId })
-      .first();
-
-    if (
-      !source ||
-      (actor.branchId !== null && source.branchId !== actor.branchId)
-    ) {
-      throw new Error("Knowledge source not found.");
-    }
-
-    const chunks = await tx.orm.public.AiKnowledgeChunk
-      .where({ sourceId })
-      .all();
-
-    for (const chunk of chunks) {
-      await tx.orm.public.AiKnowledgeChunk
-        .where({ id: chunk.id })
-        .delete();
-    }
-
-    await tx.orm.public.AiKnowledgeSource
-      .where({ id: sourceId })
-      .delete();
-
-    await tx.orm.public.AuditLog.create({
-      module: "AI Knowledge",
-      action: "Delete",
-      description: `Knowledge source deleted: ${source.title}`,
-      status: "Success",
-      ipAddress: "",
-      userId: actor.id,
-      userName: actor.name,
-      userRole: actor.role,
-    });
-
-    return {
-      id: sourceId,
-      title: source.title,
-    };
-  });
 }

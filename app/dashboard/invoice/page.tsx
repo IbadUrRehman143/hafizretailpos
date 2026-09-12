@@ -185,27 +185,25 @@ async function getErrorMessage(
 function cleanPhone(
   value: string
 ) {
-  /*
-   * Digits only
-   * max 11
-   */
+  const cleaned = value
+    .replace(/[^0-9+]/g, "")
+    .replace(/(?!^)\+/g, "");
 
-  return value
-    .replace(
-      /\D/g,
-      ""
-    )
-    .slice(
-      0,
-      11
-    );
+  if (cleaned.startsWith("+")) {
+    return cleaned.slice(0, 13);
+  }
+
+  return cleaned.slice(0, 11);
 }
 
 function validPhone(
   value: string
 ) {
-  return /^\d{11}$/.test(
-    value
+  const phone = value.trim();
+
+  return (
+    /^03\d{9}$/.test(phone) ||
+    /^\+92\d{10}$/.test(phone)
   );
 }
 
@@ -872,33 +870,41 @@ export default function InvoicePage() {
 
     if (
       saleType ===
-      "WHOLESALE"
+      "WHOLESALE" &&
+      !customer.name.trim()
     ) {
-      if (
-        !customer.name.trim()
-      ) {
-        setPageMessage({ type: "error", text: String("Customer Name is required.") });
+      setPageMessage({
+        type: "error",
+        text: String("Customer Name is required."),
+      });
 
-        return false;
-      }
+      return false;
+    }
 
-      if (
-        !customer.phone.trim()
-      ) {
-        setPageMessage({ type: "error", text: String("Phone Number is required.") });
+    if (
+      !customer.phone.trim()
+    ) {
+      setPageMessage({
+        type: "error",
+        text: String("Phone Number is required."),
+      });
 
-        return false;
-      }
+      return false;
+    }
 
-      if (
-        !validPhone(
-          customer.phone
-        )
-      ) {
-        setPageMessage({ type: "error", text: String("Phone Number exactly 11 digits hona chahiye. Sirf numbers allowed hain.") });
+    if (
+      !validPhone(
+        customer.phone
+      )
+    ) {
+      setPageMessage({
+        type: "error",
+        text: String(
+          "Phone Number 03001234567 ya +923263681018 format mein enter karein."
+        ),
+      });
 
-        return false;
-      }
+      return false;
     }
 
     /* =====================================
@@ -1257,7 +1263,20 @@ export default function InvoicePage() {
        * current stock snapshot.
        */
 
-      setPageMessage({ type: "success", text: String(data.message || (saleType === "WHOLESALE" ? "Wholesale invoice saved. Customer and Sales updated." : "Invoice saved successfully.")) });
+      setPageMessage({
+        type: "success",
+        text: String(
+          data.message ||
+            (saleType === "WHOLESALE"
+              ? "Wholesale invoice saved. Customer and Sales updated."
+              : "Invoice saved successfully.")
+        ),
+      });
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
     } catch (error) {
 
       setPageMessage({ type: "error", text: String(error instanceof
@@ -1627,15 +1646,12 @@ export default function InvoicePage() {
                 disabled={
                   invoiceSaved
                 }
-                required={
-                  saleType ===
-                  "WHOLESALE"
-                }
-                numeric
+                required
+                phone
                 maxLength={
-                  11
+                  13
                 }
-                placeholder="03001234567"
+                placeholder="+923263681018"
                 onChange={(
                   value
                 ) =>
@@ -1681,37 +1697,11 @@ export default function InvoicePage() {
               </div>
             </div>
 
-            {/* PHONE COUNTER */}
+            {/* PHONE FORMAT */}
 
-            {saleType ===
-              "WHOLESALE" && (
-              <div className="mt-3 flex items-center gap-2 text-xs">
-                <span
-                  className={
-                    customer.phone
-                      .length ===
-                    11
-                      ? "font-bold text-emerald-600"
-                      : "font-bold text-slate-500"
-                  }
-                >
-                  Phone:{" "}
-                  {
-                    customer.phone
-                      .length
-                  }
-                  /11
-                </span>
-
-                {customer.phone
-                  .length ===
-                  11 && (
-                  <span className="font-bold text-emerald-600">
-                    ✓
-                  </span>
-                )}
-              </div>
-            )}
+            <div className="mt-3 text-xs text-slate-500">
+              Example: +923263681018 or 03001234567
+            </div>
           </form>
 
           {/* ITEMS */}
@@ -1959,6 +1949,7 @@ function InputField({
   disabled = false,
   required = false,
   numeric = false,
+  phone = false,
   maxLength,
 }: {
   label: string;
@@ -1976,6 +1967,8 @@ function InputField({
   required?: boolean;
 
   numeric?: boolean;
+
+  phone?: boolean;
 
   maxLength?: number;
 }) {
@@ -2003,9 +1996,11 @@ function InputField({
          */
         type="text"
         inputMode={
-          numeric
-            ? "numeric"
-            : "text"
+          phone
+            ? "tel"
+            : numeric
+              ? "numeric"
+              : "text"
         }
         value={
           value

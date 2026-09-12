@@ -2237,64 +2237,129 @@ setPaymentCustomer(
                     No payment history found.
                   </div>
                 ) : (
-                  <div className="max-h-60 overflow-y-auto">
-                    <table className="w-full min-w-130">
-                      <thead className="sticky top-0 bg-white">
-                        <tr className="border-b border-slate-100">
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-400">
-                            Invoice
-                          </th>
+                  <>
+                    {/* Mobile / Tablet Payment History */}
+                    <div className="divide-y divide-slate-100 md:hidden">
+                      {paymentHistory.map(
+                        (payment) => (
+                          <div
+                            key={payment.id}
+                            className="p-4"
+                          >
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="rounded-xl bg-slate-50 p-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                  Invoice
+                                </p>
 
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-400">
-                            Method
-                          </th>
+                                <p className="mt-1 break-words text-sm font-semibold text-slate-700">
+                                  {payment.invoiceNumber ||
+                                    `Invoice #${payment.invoiceId}`}
+                                </p>
+                              </div>
 
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-400">
-                            Date
-                          </th>
+                              <div className="rounded-xl bg-slate-50 p-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                  Method
+                                </p>
 
-                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-slate-400">
-                            Amount
-                          </th>
-                        </tr>
-                      </thead>
+                                <p className="mt-1 break-words text-sm font-medium text-slate-700">
+                                  {payment.method}
+                                </p>
+                              </div>
 
-                      <tbody className="divide-y divide-slate-100">
-                        {paymentHistory.map(
-                          (payment) => (
-                            <tr
-                              key={
-                                payment.id
-                              }
-                            >
-                              <td className="px-4 py-3 text-sm font-semibold text-slate-700">
-                                {payment.invoiceNumber ||
-                                  `Invoice #${payment.invoiceId}`}
-                              </td>
+                              <div className="rounded-xl bg-slate-50 p-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                  Date
+                                </p>
 
-                              <td className="px-4 py-3 text-sm text-slate-600">
-                                {
-                                  payment.method
-                                }
-                              </td>
+                                <p className="mt-1 text-xs text-slate-600">
+                                  {formatDate(
+                                    payment.createdAt
+                                  )}
+                                </p>
+                              </div>
 
-                              <td className="px-4 py-3 text-xs text-slate-500">
-                                {formatDate(
-                                  payment.createdAt
-                                )}
-                              </td>
+                              <div className="rounded-xl bg-emerald-50 p-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600">
+                                  Amount
+                                </p>
 
-                              <td className="px-4 py-3 text-right text-sm font-bold text-emerald-600">
-                                {formatCurrency(
-                                  payment.amount
-                                )}
-                              </td>
-                            </tr>
-                          )
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                                <p className="mt-1 break-words text-sm font-bold text-emerald-600">
+                                  {formatCurrency(
+                                    payment.amount
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
+
+                    {/* Desktop Payment History - No Internal Scroll */}
+                    <div className="hidden md:block">
+                      <table className="w-full table-fixed">
+                        <colgroup>
+                          <col className="w-[27%]" />
+                          <col className="w-[18%]" />
+                          <col className="w-[35%]" />
+                          <col className="w-[20%]" />
+                        </colgroup>
+
+                        <thead className="bg-white">
+                          <tr className="border-b border-slate-100">
+                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-400">
+                              Invoice
+                            </th>
+
+                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-400">
+                              Method
+                            </th>
+
+                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-400">
+                              Date
+                            </th>
+
+                            <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-slate-400">
+                              Amount
+                            </th>
+                          </tr>
+                        </thead>
+
+                        <tbody className="divide-y divide-slate-100">
+                          {paymentHistory.map(
+                            (payment) => (
+                              <tr
+                                key={payment.id}
+                              >
+                                <td className="break-words px-4 py-3 text-sm font-semibold text-slate-700">
+                                  {payment.invoiceNumber ||
+                                    `Invoice #${payment.invoiceId}`}
+                                </td>
+
+                                <td className="break-words px-4 py-3 text-sm text-slate-600">
+                                  {payment.method}
+                                </td>
+
+                                <td className="px-4 py-3 text-xs text-slate-500">
+                                  {formatDate(
+                                    payment.createdAt
+                                  )}
+                                </td>
+
+                                <td className="break-words px-4 py-3 text-right text-sm font-bold text-emerald-600">
+                                  {formatCurrency(
+                                    payment.amount
+                                  )}
+                                </td>
+                              </tr>
+                            )
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 )}
               </div>
 

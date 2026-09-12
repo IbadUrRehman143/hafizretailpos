@@ -1,107 +1,25 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireApiPermission } from "@/src/lib/auth/apiGuard";
-import {
-  addKnowledge,
-  deleteKnowledge,
-  listKnowledge,
-  searchKnowledge,
-  type ActorScope,
-} from "@/src/lib/autonomous-intelligence";
+import { addKnowledge, listKnowledge, searchKnowledge, type ActorScope } from "@/src/lib/autonomous-intelligence";
 
 export const dynamic = "force-dynamic";
-
-const actorFrom = (s: any): ActorScope => ({
-  id: s.id,
-  name: s.name,
-  role: s.role,
-  branchId: s.branchId,
-});
+const actorFrom = (s: any): ActorScope => ({ id:s.id, name:s.name, role:s.role, branchId:s.branchId });
 
 export async function GET(request: Request) {
-  const auth = await requireApiPermission("reports", "view");
-  if (!auth.ok) return auth.response;
-
+  const auth = await requireApiPermission("reports", "view"); if (!auth.ok) return auth.response;
   const q = (new URL(request.url).searchParams.get("q") || "").trim();
   const actor = actorFrom(auth.session);
-
-  const data = q
-    ? await searchKnowledge(q, actor)
-    : await listKnowledge(actor);
-
-  return NextResponse.json({
-    success: true,
-    verified: true,
-    data,
-  });
+  const data = q ? await searchKnowledge(q, actor) : await listKnowledge(actor);
+  return NextResponse.json({ success:true, verified:true, data });
 }
 
 export async function POST(request: Request) {
   try {
-    const auth = await requireApiPermission("reports", "create");
-    if (!auth.ok) return auth.response;
-
+    const auth = await requireApiPermission("reports", "create"); if (!auth.ok) return auth.response;
     const body = await request.json();
-
-    const data = await addKnowledge(
-      {
-        title: String(body.title || ""),
-        sourceType: body.sourceType || "NOTE",
-        content: String(body.content || ""),
-      },
-      actorFrom(auth.session)
-    );
-
-    return NextResponse.json({
-      success: true,
-      verified: true,
-      data,
-    });
-  } catch (e) {
-    return NextResponse.json(
-      {
-        success: false,
-        message:
-          e instanceof Error
-            ? e.message
-            : "Unable to save knowledge.",
-      },
-      { status: 400 }
-    );
-  }
-}
-
-export async function DELETE(request: Request) {
-  try {
-    const auth = await requireApiPermission("reports", "delete");
-    if (!auth.ok) return auth.response;
-
-    const id = Number(new URL(request.url).searchParams.get("id") || 0);
-
-    if (!Number.isInteger(id) || id <= 0) {
-      throw new Error("Valid knowledge source ID is required.");
-    }
-
-    const data = await deleteKnowledge(
-      id,
-      actorFrom(auth.session)
-    );
-
-    return NextResponse.json({
-      success: true,
-      verified: true,
-      message: "Knowledge source deleted.",
-      data,
-    });
-  } catch (e) {
-    return NextResponse.json(
-      {
-        success: false,
-        message:
-          e instanceof Error
-            ? e.message
-            : "Unable to delete knowledge.",
-      },
-      { status: 400 }
-    );
+    const data = await addKnowledge({ title:String(body.title||""), sourceType:body.sourceType||"NOTE", content:String(body.content||"") }, actorFrom(auth.session));
+    return NextResponse.json({ success:true, verified:true, data });
+  } catch(e) {
+    return NextResponse.json({ success:false, message:e instanceof Error?e.message:"Unable to save knowledge." },{status:400});
   }
 }

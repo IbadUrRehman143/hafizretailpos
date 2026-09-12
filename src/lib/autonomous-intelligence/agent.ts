@@ -1,4 +1,4 @@
-﻿import "server-only";
+import "server-only";
 import { db } from "@/src/prisma/db";
 import { getPurchaseRecommendations } from "@/src/lib/inventory-intelligence";
 import type { ActorScope, ProposedAction } from "./types";
@@ -117,79 +117,5 @@ export async function executeApprovedAction(actionId: number, actor: ActorScope)
     const updated = await tx.orm.public.AiAction.where({ id:actionId }).update({ status:"EXECUTED", executedAt:new Date().toISOString(), failureReason:"" });
     await tx.orm.public.AuditLog.create({ module:"AI Approval", action:"Execute", description:`AI action #${actionId} executed as ${purchaseNumber}.`, status:"Success", ipAddress:"", userId:actor.id, userName:actor.name, userRole:actor.role });
     return { action: toAction(updated), purchase: { id:purchase.id, purchaseNumber, subtotal } };
-  });
-}
-
-
-export async function deleteAction(actionId: number, actor: ActorScope) {
-  if (!Number.isInteger(actionId) || actionId <= 0) {
-    throw new Error("Valid AI action ID is required.");
-  }
-
-  return db.transaction(async (tx) => {
-    const row = await tx.orm.public.AiAction
-      .where({ id: actionId })
-      .first();
-
-    if (
-      !row ||
-      (actor.branchId !== null && row.branchId !== actor.branchId)
-    ) {
-      throw new Error("AI action not found.");
-    }
-
-    await tx.orm.public.AiAction
-      .where({ id: actionId })
-      .delete();
-
-    await tx.orm.public.AuditLog.create({
-      module: "AI Approval",
-      action: "Delete",
-      description: `AI action #${actionId} history entry deleted. Business records were not changed.`,
-      status: "Success",
-      ipAddress: "",
-      userId: actor.id,
-      userName: actor.name,
-      userRole: actor.role,
-    });
-
-    return {
-      id: actionId,
-      status: row.status,
-    };
-  });
-}
-
-
-export async function clearActionHistory(actor: ActorScope) {
-  return db.transaction(async (tx) => {
-    const all = await tx.orm.public.AiAction.all();
-
-    const removable = all.filter(
-      (row) =>
-        (actor.branchId === null || row.branchId === actor.branchId) &&
-        (row.status === "EXECUTED" || row.status === "REJECTED")
-    );
-
-    for (const row of removable) {
-      await tx.orm.public.AiAction
-        .where({ id: row.id })
-        .delete();
-    }
-
-    await tx.orm.public.AuditLog.create({
-      module: "AI Approval",
-      action: "Clear History",
-      description: `${removable.length} completed/rejected AI history record(s) cleared. Business records were not changed.`,
-      status: "Success",
-      ipAddress: "",
-      userId: actor.id,
-      userName: actor.name,
-      userRole: actor.role,
-    });
-
-    return {
-      deleted: removable.length,
-    };
   });
 }
